@@ -1,0 +1,23 @@
+# Static site: tools/build.py wraps app/index.html into a full page and copies the app into build/.
+[build]
+  command = "python3 tools/build.py"
+  publish = "build"
+
+# the geometry kernel's WebAssembly must be served with the wasm type for streaming compile
+[[headers]]
+  for = "/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+    Cache-Control = "public, max-age=604800"
+
+# PrusaSlicer preset configs are fetched as text during export
+[[headers]]
+  for = "/*.config"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

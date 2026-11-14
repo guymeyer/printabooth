@@ -26,9 +26,10 @@ The download is a zip with:
 
 | Path | What |
 |---|---|
-| `app/` | The configurator. `index.html` (UI, a body fragment), `app.js` (UI, three.js scene, export), `geom.js` (all geometry, on manifold-3d), `worker.js` (geometry off the main thread), `pack3mf.js` (bed packing and the PrusaSlicer 3MF writer), `xl.config` and `coreone.config` (flattened PrusaSlicer presets), plus vendored three.js and manifold-3d. |
+| `app/` | The configurator. `index.html` (UI, a body fragment), `app.js` (UI, three.js scene, export), `geom.js` (all geometry, on manifold-3d), `worker.js` (geometry off the main thread), `pack3mf.js` (bed packing and the PrusaSlicer 3MF writer), `xl.config` and `coreone.config` (flattened PrusaSlicer presets), plus vendored three.js, manifold-3d and JSZip. |
 | `checks/` | Node scripts that build the parts and verify them: assembly overlaps, single-body parts, overhangs and thin walls per part, wall thickness around the LED channel, tray and base sockets, ferrule fit, and the 3MF layout. |
-| `tools/preview.py` | Serves the configurator locally. |
+| `tools/build.py` | Builds the static site into `build/` (used by Netlify). |
+| `tools/preview.py` | Builds and serves the configurator locally. |
 | `tools/prusa/flatten.py` | Regenerates the preset configs from PrusaSlicer's `PrusaResearch.ini`. |
 
 ## Run it
@@ -39,6 +40,10 @@ npm install                   # manifold-3d, for the checks
 npm run check                 # geometry checks
 npm run check:print           # full print audit of the default hugged landscape setup (slow)
 ```
+
+## Deploy
+
+`netlify.toml` builds the site with `python3 tools/build.py` and publishes `build/`, with the right content types for the WebAssembly kernel and the preset configs. Connect the repo in Netlify (Add new site → Import an existing project → GitHub → `printabooth`) and every push to `main` deploys. Exports save as a normal browser download outside claude.ai.
 
 ## Notes
 

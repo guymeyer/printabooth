@@ -693,9 +693,13 @@ $("#exportBtn").addEventListener("click", async () => {
   const parts = exportList().map(([n]) => n).filter((n) => selected.has(n) && GEO[n]);
   if (!parts.length) { msg.textContent = "Select at least one part."; return; }
   if (validate(cfg).some((i) => i.level === "error")) { msg.classList.add("err"); msg.textContent = "Fix the highlighted settings first."; return; }
+  // on claude.ai the host's downloads capability saves the file; anywhere else (Netlify, local) a plain browser download
   let downloads = null;
   try { downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
-  if (!downloads) { msg.classList.add("err"); msg.textContent = "Downloads aren't available in this view. Open the published page to export."; return; }
+  if (!downloads) downloads = { save: async ({ filename, data }) => {
+    const url = URL.createObjectURL(data), a = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } };
   btn.disabled = true;
   try {
     const qty = Object.fromEntries(exportList()), labels = Object.fromEntries(parts.map((p) => [p, partLabel(p)]));
@@ -729,7 +733,7 @@ $("#exportBtn").addEventListener("click", async () => {
     zip.file("README.txt", readme(sizes, projNotes));
     zip.file("booth-config.json", JSON.stringify(cfg, null, 2));
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-    msg.textContent = `Ready: ${(blob.size / 1e6).toFixed(1)} MB. Confirm the download.`;
+    msg.textContent = `Ready: ${(blob.size / 1e6).toFixed(1)} MB. Saving…`;
     await downloads.save({ filename: `cassette-booth-${slug(cfg.tablet.preset)}-${cfg.orientation}.zip`, data: blob });
     msg.textContent = "Saved.";
   } catch (e) {
