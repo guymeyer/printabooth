@@ -1,0 +1,422 @@
+<title>Cassette Booth Builder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,650&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: workshop bench. Controls column on the left reads like a build sheet; the right is the model on a matte backdrop. */
+:root {
+  --bg: #e9ecea;
+  --panel: #f7f8f6;
+  --raised: #ffffff;
+  --ink: #18201d;
+  --ink-2: #4c5652;
+  --ink-3: #7c8682;
+  --line: #d3d8d5;
+  --line-2: #bfc6c2;
+  --accent: #d98516;
+  --accent-ink: #8a4f00;
+  --accent-soft: #fbe9cf;
+  --viewer: #dfe3e0;
+  --ok: #2f7d55;
+  --warn: #a8660a;
+  --err: #b4372c;
+  --err-soft: #f9e2df;
+  --warn-soft: #fbefd9;
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111513; --panel: #171c1a; --raised: #1f2522; --ink: #e5eae7; --ink-2: #aab3ae; --ink-3: #7d8782;
+    --line: #2a322e; --line-2: #3a4440; --accent: #f2a33a; --accent-ink: #f6bb66; --accent-soft: #3a2a12;
+    --viewer: #1b201e; --ok: #5cc28c; --warn: #e8a648; --err: #ef7a6e; --err-soft: #3a1e1b; --warn-soft: #3a2c14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111513; --panel: #171c1a; --raised: #1f2522; --ink: #e5eae7; --ink-2: #aab3ae; --ink-3: #7d8782;
+  --line: #2a322e; --line-2: #3a4440; --accent: #f2a33a; --accent-ink: #f6bb66; --accent-soft: #3a2a12;
+  --viewer: #1b201e; --ok: #5cc28c; --warn: #e8a648; --err: #ef7a6e; --err-soft: #3a1e1b; --warn-soft: #3a2c14;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr; }
+.bar {
+  display: flex; align-items: center; gap: 12px;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { margin: 0; font: 650 19px/1.1 var(--f-display); letter-spacing: -0.01em; white-space: nowrap; }
+.brand span { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar .spacer { flex: 1; }
+.btn {
+  border: 1px solid var(--line-2); background: var(--raised); border-radius: 7px; padding: 6px 12px; cursor: pointer;
+  font-weight: 500; font-size: 13px; transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #1d1206; font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.05); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.layout { min-height: 0; display: grid; grid-template-columns: minmax(340px, 410px) 1fr; }
+.panel { min-height: 0; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); }
+.panel-inner { padding-block: 12px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; display: grid; gap: 10px; }
+
+.issues { display: grid; gap: 6px; }
+.issue { border-radius: 8px; padding: 8px 10px; font-size: 13px; display: flex; gap: 8px; }
+.issue.error { background: var(--err-soft); color: var(--err); }
+.issue.warn { background: var(--warn-soft); color: var(--warn); }
+.issue b { font-weight: 600; }
+.issue { display: grid; grid-template-columns: auto 1fr; align-items: start; column-gap: 8px; row-gap: 8px; }
+.issue span { min-width: 0; }
+.issue .fixbtn { grid-column: 2; justify-self: start; }
+.fixbtn { flex: none; font: inherit; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; white-space: nowrap; }
+.fixbtn:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.fixbtn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.fixbtn.ghost { border-color: transparent; opacity: .85; }
+.fixbtn.all { justify-self: start; color: var(--warn); }
+
+details.step { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; }
+details.step > summary {
+  list-style: none; cursor: pointer; display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 10px;
+  padding: 12px 14px;
+}
+details.step > summary::-webkit-details-marker { display: none; }
+.num {
+  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  font: 500 12px var(--f-mono); border: 1px solid var(--line-2); color: var(--ink-2);
+}
+details[open] .num { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.st { min-width: 0; }
+.st h2 { margin: 0; font: 650 15px/1.2 var(--f-display); letter-spacing: -0.005em; }
+.st .sum { color: var(--ink-3); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.chev { color: var(--ink-3); transition: transform .2s; font-size: 12px; }
+details[open] .chev { transform: rotate(90deg); }
+.body { padding: 2px 14px 16px; display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+
+.field { display: grid; gap: 6px; }
+.field > label, .lbl { font-size: 12px; font-weight: 600; color: var(--ink-2); letter-spacing: .01em; display: flex; justify-content: space-between; gap: 8px; }
+.lbl output, .field > label output { font: 500 12px var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.hint { font-size: 12px; color: var(--ink-3); margin: 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+select, .num-in {
+  width: 100%; border: 1px solid var(--line-2); background: var(--panel); border-radius: 7px; padding: 7px 9px; min-width: 0;
+}
+.unit { position: relative; }
+.unit .num-in { padding-right: 34px; font-family: var(--f-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+.unit::after { content: attr(data-u); position: absolute; right: 9px; top: 50%; transform: translateY(-50%); color: var(--ink-3); font-size: 11px; pointer-events: none; }
+
+input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line-2); }
+
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 600; font-size: 13px; }
+.switch { position: relative; width: 38px; height: 22px; flex: none; }
+.switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.switch span { position: absolute; inset: 0; border-radius: 11px; background: var(--line-2); transition: background .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch input:checked + span { background: var(--accent); }
+.switch input:checked + span::after { transform: translateX(16px); }
+.switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.stepper { display: grid; grid-template-columns: 34px 1fr 34px; border: 1px solid var(--line-2); border-radius: 7px; overflow: hidden; }
+.stepper button { border: 0; background: var(--bg); cursor: pointer; font-size: 16px; }
+.stepper output { display: grid; place-items: center; font: 500 13px var(--f-mono); background: var(--panel); }
+
+.readout { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.readout dt { color: var(--ink-2); }
+.readout dd { margin: 0; font: 500 13px var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.readout dd.big { font-size: 15px; color: var(--accent-ink); }
+
+.holes-wrap { background: var(--bg); border-radius: 8px; padding: 10px; display: grid; gap: 8px; }
+.holes-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--ink-2); }
+.holes-head b { font: 500 13px var(--f-mono); color: var(--ink); }
+#holes { width: 100%; max-width: 100%; aspect-ratio: 1; touch-action: none; user-select: none; display: block; }
+#holes .shell { fill: var(--raised); stroke: var(--line-2); stroke-width: 1.2; }
+#holes .lip { fill: none; stroke: var(--line-2); stroke-width: 0.8; stroke-dasharray: 3 3; }
+#holes .screw { fill: none; stroke: var(--ink-3); stroke-width: 1; }
+#holes .cell { cursor: pointer; }
+#holes .cell.on { fill: var(--accent); stroke: var(--accent-ink); stroke-width: .8; }
+#holes .cell.off { fill: transparent; stroke: var(--line-2); stroke-width: 1; }
+#holes .cell.off:hover { stroke: var(--accent); }
+#holes .cap-mark { fill: var(--ink-3); font: 9px var(--f-mono); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line-2); background: var(--raised); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+
+.parts { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.part { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--raised); }
+.part:first-child { border-top: 0; }
+.part input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.part .pn { min-width: 0; }
+.part .pn button { border: 0; background: none; padding: 0; cursor: pointer; font-weight: 600; font-size: 13px; text-align: left; }
+.part .pn button:hover { color: var(--accent-ink); text-decoration: underline; }
+.part .pd { display: block; font: 400 11px var(--f-mono); color: var(--ink-3); }
+.bed { font: 500 11px var(--f-mono); padding: 2px 7px; border-radius: 5px; background: var(--bg); color: var(--ink-2); white-space: nowrap; }
+.bed.xl { background: var(--accent-soft); color: var(--accent-ink); }
+.export-row { display: grid; gap: 8px; }
+.export-msg { font-size: 12px; color: var(--ink-2); min-height: 18px; }
+.export-msg.err { color: var(--err); }
+
+.viewer { position: relative; min-height: 0; min-width: 0; background: var(--viewer); overflow: hidden; }
+#stage { position: absolute; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+.vtools { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; pointer-events: none; }
+.vtools > * { pointer-events: auto; }
+.vtools .seg { background: color-mix(in srgb, var(--raised) 88%, transparent); backdrop-filter: blur(6px); }
+.busy { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: 999px; background: color-mix(in srgb, var(--raised) 88%, transparent); color: var(--ink-2); transition: opacity .2s; }
+.busy i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+.busy[data-idle="true"] i { animation: none; background: var(--ok); }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { .busy i { animation: none; } }
+.focus-pill { display: none; align-items: center; gap: 8px; padding: 5px 6px 5px 12px; border-radius: 999px; background: var(--ink); color: var(--panel); font-size: 12px; font-weight: 600; }
+.focus-pill.show { display: inline-flex; }
+.focus-pill button { border: 0; background: var(--panel); color: var(--ink); border-radius: 999px; padding: 2px 10px; cursor: pointer; font-size: 12px; }
+.stats {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px;
+  background: var(--line); border-radius: 10px; overflow: hidden; border: 1px solid var(--line);
+}
+.stat { background: color-mix(in srgb, var(--raised) 92%, transparent); padding: 8px 12px; min-width: 0; }
+.stat .k { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; text-transform: uppercase; }
+.stat .v { font: 500 15px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .v small { font-size: 11px; color: var(--ink-3); }
+.loadmsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 13px; pointer-events: none; }
+
+@media (max-width: 860px) {
+  .app { height: auto; display: block; }
+  .layout { display: flex; flex-direction: column-reverse; }
+  .viewer { height: 62vh; min-height: 340px; }
+  .panel { overflow: visible; border-right: 0; }
+  .panel-inner { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><h1>Cassette Booth Builder</h1><span>Modular iPad photo booth enclosure</span></div>
+    <div class="spacer"></div>
+    <button class="btn" id="reset" type="button">Reset</button>
+  </header>
+
+  <main class="layout">
+    <aside class="panel" aria-label="Configuration">
+      <div class="panel-inner">
+        <div class="issues" id="issues" aria-live="polite"></div>
+
+        <details class="step" open id="s1">
+          <summary><span class="num">1</span><span class="st"><h2>Tablet &amp; cassette</h2><span class="sum" id="sum1"></span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <div class="field">
+              <label for="preset">Tablet</label>
+              <select id="preset"></select>
+            </div>
+            <div class="field">
+              <span class="lbl">Orientation</span>
+              <div class="seg" data-path="orientation" role="group" aria-label="Orientation">
+                <button type="button" data-v="landscape">Landscape</button><button type="button" data-v="portrait">Portrait</button>
+              </div>
+            </div>
+            <div class="field" id="camSideField">
+              <span class="lbl">Camera side, seen from the front</span>
+              <div class="seg" data-path="camSide" role="group" aria-label="Camera side">
+                <button type="button" data-v="left">Left</button><button type="button" data-v="right">Right</button>
+              </div>
+              <p class="hint">In this orientation the camera sits on a side edge. Your Kiosk app can crop to re-center guests.</p>
+            </div>
+            <details id="dims">
+              <summary class="hint" style="cursor:pointer">Tablet dimensions</summary>
+              <div style="display:grid;gap:10px;margin-top:10px">
+                <div class="row3">
+                  <div class="field"><label for="t-w">Length</label><div class="unit" data-u="mm"><input class="num-in" id="t-w" type="number" step="0.1" data-path="tablet.w"></div></div>
+                  <div class="field"><label for="t-h">Width</label><div class="unit" data-u="mm"><input class="num-in" id="t-h" type="number" step="0.1" data-path="tablet.h"></div></div>
+                  <div class="field"><label for="t-t">Thickness</label><div class="unit" data-u="mm"><input class="num-in" id="t-t" type="number" step="0.1" data-path="tablet.t"></div></div>
+                </div>
+                <div class="row3">
+                  <div class="field"><label for="t-sw">Screen L</label><div class="unit" data-u="mm"><input class="num-in" id="t-sw" type="number" step="0.1" data-path="tablet.sw"></div></div>
+                  <div class="field"><label for="t-sh">Screen W</label><div class="unit" data-u="mm"><input class="num-in" id="t-sh" type="number" step="0.1" data-path="tablet.sh"></div></div>
+                  <div class="field"><label for="t-r">Corner R</label><div class="unit" data-u="mm"><input class="num-in" id="t-r" type="number" step="0.5" data-path="tablet.r"></div></div>
+                </div>
+                <div class="row2">
+                  <div class="field"><label for="t-ce">Camera edge</label><select id="t-ce" data-path="tablet.camEdge"><option value="long">Long edge</option><option value="short">Short edge</option></select></div>
+                  <div class="field"><label for="t-co">Camera from edge</label><div class="unit" data-u="mm"><input class="num-in" id="t-co" type="number" step="0.1" data-path="tablet.camOff"></div></div>
+                </div>
+                <div class="field"><label for="t-bump">Rear camera keep-out</label><div class="unit" data-u="mm"><input class="num-in" id="t-bump" type="number" step="1" min="0" max="60" data-path="tablet.bump"></div>
+                  <div class="seg" data-path="cass.bumpCorner" role="group" aria-label="Rear camera relief" style="margin-top:6px"><button type="button" data-v="auto">One corner</button><button type="button" data-v="pair">Opposite pair</button><button type="button" data-v="all">All four</button></div>
+                  <p class="hint" id="bumpHint"></p></div>
+                <p class="hint">A 1.2 mm groove runs around the pocket wall at mid-thickness so the side buttons are never pressed. Preset sizes come from published specs. Check yours with calipers before a big print.</p>
+              </div>
+            </details>
+            <div class="field">
+              <span class="lbl">Shell fit</span>
+              <div class="seg" data-path="fitMode" role="group" aria-label="Shell fit">
+                <button type="button" data-v="universal">One size fits most</button><button type="button" data-v="hug">Hug this tablet</button>
+              </div>
+              <p class="hint" id="fitHint"></p>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="fit">Pocket clearance</label><div class="unit" data-u="mm"><input class="num-in" id="fit" type="number" step="0.1" min="0.2" max="2" data-path="fit"></div></div>
+              <div class="field" id="csizeField"><label for="csize">Cassette size</label><div class="unit" data-u="mm"><input class="num-in" id="csize" type="number" step="2" min="160" max="330" data-path="cass.size"></div></div>
+            </div>
+            <div id="hugFields" style="display:grid;gap:14px">
+              <div class="row2">
+                <div class="field"><label for="ovl">Lip on the glass</label><div class="unit" data-u="mm"><input class="num-in" id="ovl" type="number" step="0.5" min="1" max="10" data-path="cass.overlap"></div></div>
+                <div class="field"><label for="liner">Felt liner</label><div class="unit" data-u="mm"><input class="num-in" id="liner" type="number" step="0.1" min="0" max="2" data-path="cass.liner"></div></div>
+              </div>
+              <div class="row2">
+                <div class="field"><label for="pgap">USB-C plug room</label><div class="unit" data-u="mm"><input class="num-in" id="pgap" type="number" step="0.5" min="0" max="25" data-path="cass.portGap"></div></div>
+                <div class="field" id="portSideField"><span class="lbl">Port side</span>
+                  <div class="seg" data-path="cass.portSide" role="group" aria-label="USB-C port side"><button type="button" data-v="auto">From camera</button><button type="button" data-v="both">Both edges</button></div>
+                </div>
+              </div>
+              <p class="hint" id="portHint"></p>
+            </div>
+          </div>
+        </details>
+
+        <details class="step" id="s2">
+          <summary><span class="num">2</span><span class="st"><h2>Shell</h2><span class="sum" id="sum2"></span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <div class="field">
+              <span class="lbl">Extension rings <output id="depthOut"></output></span>
+              <div class="stepper"><button type="button" id="extMinus" aria-label="Fewer rings">−</button><output id="extOut">1</output><button type="button" id="extPlus" aria-label="More rings">+</button></div>
+              <p class="hint">Ring 1 is always there. Add rings for a battery or other electronics.</p>
+            </div>
+            <div class="field"><label for="ring1D">Main shell depth <output id="ring1Out"></output></label><input id="ring1D" type="range" min="40" max="140" step="5" data-path="shell.ring1D">
+              <p class="hint">Ring 1, which carries the finger scoop and the base. It never goes below the depth the base needs to sit fully under the head.</p></div>
+            <div class="field"><label for="ringD">Extension ring depth <output data-for="shell.ringD"></output></label><input id="ringD" type="range" min="40" max="100" step="5" data-path="shell.ringD"></div>
+            <div class="field"><label for="cornerR">Corner radius <output data-for="shell.cornerR"></output></label><input id="cornerR" type="range" min="16" max="80" step="2" data-path="shell.cornerR"></div>
+            <div class="field">
+              <span class="lbl">Shell joints</span>
+              <div class="seg" data-path="shell.join" role="group" aria-label="Shell joints"><button type="button" data-v="glue">Glued lap joints</button><button type="button" data-v="screws">Screws + inserts</button></div>
+              <p class="hint" id="joinHint"></p>
+            </div>
+            <div class="field">
+              <label for="insType">Heat-set inserts</label>
+              <select id="insType" data-path="inserts.type"></select>
+              <div class="row3" id="insCustom">
+                <div class="field"><label for="insScrew">Thread</label><div class="unit" data-u="M"><input class="num-in" id="insScrew" type="number" step="0.5" min="2" max="6" data-path="inserts.screw"></div></div>
+                <div class="field"><label for="insHole">Hole Ø</label><div class="unit" data-u="mm"><input class="num-in" id="insHole" type="number" step="0.1" min="2" max="8" data-path="inserts.hole"></div></div>
+                <div class="field"><label for="insLen">Length</label><div class="unit" data-u="mm"><input class="num-in" id="insLen" type="number" step="0.1" min="2" max="14" data-path="inserts.len"></div></div>
+              </div>
+              <p class="hint" id="insHint"></p>
+            </div>
+            <p class="hint">The cassette slides straight down into the shell; there's no cap and nothing to unscrew. Its top edge sits flush with the shell. A rounded finger scoop straddles the seam and continues into a small recessed ridge on the back of the cassette, so your fingertips hook under it to lift it out.</p>
+          </div>
+        </details>
+
+        <details class="step" id="s3">
+          <summary><span class="num">3</span><span class="st"><h2>LED channel</h2><span class="sum" id="sum3"></span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <label class="toggle" for="ledOn">LED halo channel <span class="switch"><input type="checkbox" id="ledOn" data-path="led.on"><span></span></span></label>
+            <div id="ledFields" style="display:grid;gap:14px">
+              <div class="field"><label for="ledW">Channel width <output data-for="led.w"></output></label><input id="ledW" type="range" min="4" max="16" step="0.5" data-path="led.w"></div>
+              <div class="field"><label for="ledD">Channel depth <output data-for="led.depth"></output></label><input id="ledD" type="range" min="3" max="12" step="0.5" data-path="led.depth"></div>
+              <div class="field"><label for="ledS">Outer wall <output data-for="led.skin"></output></label><input id="ledS" type="range" min="2" max="12" step="0.5" data-path="led.skin"></div>
+              <div class="field"><label for="ledT">Diffuser thickness <output data-for="led.diffT"></output></label><input id="ledT" type="range" min="1" max="3" step="0.2" data-path="led.diffT"></div>
+              <div class="field"><label for="ledI">Wire inlet cover <output data-for="led.inlet"></output></label><input id="ledI" type="range" min="20" max="70" step="2" data-path="led.inlet"></div>
+              <dl class="readout" id="ledOut"></dl>
+              <p class="hint">Match the width to your strip plus 1 mm; the 6 mm default takes a 5 mm COB strip. Depth is the air gap that softens hotspots. The channel is a U around the sides and bottom of the face and stops at the shoulders, under the cassette's accent band, so it never crosses the cassette slot and the front lip stays 2 mm thin. Two strips start under the solid bottom cover, where their leads drop into a pocket that opens into the box, and run up each side.</p>
+            </div>
+          </div>
+        </details>
+
+        <details class="step" id="s4">
+          <summary><span class="num">4</span><span class="st"><h2>Back panel &amp; threads</h2><span class="sum" id="sum4"></span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <div class="field">
+              <span class="lbl">Holes</span>
+              <div class="seg" data-path="back.mode" role="group" aria-label="Hole type">
+                <button type="button" data-v="threaded">Threaded</button><button type="button" data-v="plain">Plain</button><button type="button" data-v="none">Solid</button>
+              </div>
+            </div>
+            <div id="holeFields" style="display:grid;gap:14px">
+              <div class="row3">
+                <div class="field"><label for="bd">Thread Ø</label><div class="unit" data-u="mm"><input class="num-in" id="bd" type="number" step="0.5" min="3" max="20" data-path="back.d"></div></div>
+                <div class="field"><label for="bp">Pitch</label><div class="unit" data-u="mm"><input class="num-in" id="bp" type="number" step="0.05" min="0.5" max="4" data-path="back.pitch"></div></div>
+                <div class="field"><label for="bg">Grid</label><div class="unit" data-u="mm"><input class="num-in" id="bg" type="number" step="1" min="10" max="60" data-path="back.grid"></div></div>
+              </div>
+              <p class="hint">Placeholder thread spec. Measure a Thread Boards screw and type its diameter and pitch here; print one test hole first.</p>
+              <div class="holes-wrap">
+                <div class="holes-head"><span>Seen from behind the booth · click or drag to toggle</span><b id="holeCount"></b></div>
+                <svg id="holes" role="img" aria-label="Back panel thread layout"></svg>
+                <div class="chips" role="group" aria-label="Layout presets">
+                  <button type="button" class="chip" data-preset="all">All</button>
+                  <button type="button" class="chip" data-preset="border">Border</button>
+                  <button type="button" class="chip" data-preset="checker">Every other</button>
+                  <button type="button" class="chip" data-preset="center">Center block</button>
+                  <button type="button" class="chip" data-preset="lower">Lower half</button>
+                  <button type="button" class="chip" data-preset="clear">Clear</button>
+                </div>
+              </div>
+            </div>
+            <div class="row2">
+              <div class="field"><label for="bt">Panel thickness</label><div class="unit" data-u="mm"><input class="num-in" id="bt" type="number" step="0.5" min="4" max="16" data-path="back.t"></div></div>
+              <div class="field"><label for="bc">Thread clearance</label><div class="unit" data-u="mm"><input class="num-in" id="bc" type="number" step="0.05" min="0" max="1" data-path="back.clr"></div></div>
+            </div>
+            <p class="hint">The back is solid and screws on at all eight lug points, so one back fits any ring count. Hang heavy items like a battery low, or strap them to a ring floor.</p>
+          </div>
+        </details>
+
+        <details class="step" id="s5">
+          <summary><span class="num">5</span><span class="st"><h2>Legs &amp; height</h2><span class="sum" id="sum5"></span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <div class="field"><label for="camH">Camera height <output id="camHOut"></output></label><input id="camH" type="range" min="42" max="72" step="0.5"></div>
+            <div class="field"><label for="splay">Leg splay <output data-for="legs.splay"></output></label><input id="splay" type="range" min="8" max="26" step="1" data-path="legs.splay"></div>
+            <div class="field">
+              <label for="dowel">Dowel diameter</label>
+              <select id="dowel" data-path="legs.dowel" data-num="1">
+                <option value="25.4">1" (25.4 mm)</option><option value="31.75">1¼" (31.8 mm)</option><option value="38.1">1½" (38.1 mm)</option><option value="44.45">1¾" (44.5 mm)</option>
+              </select>
+            </div>
+            <dl class="readout" id="legOut"></dl>
+            <p class="hint">One leg points back so a push on the screen meets the strong side of the tripod. The base is a plain drum centered under the head; each leg threads into a socket bored into its underside, with a seat square to the leg so the ferrule sits flat. The power cable drops through the center of the drum.</p>
+          </div>
+        </details>
+
+        <details class="step" id="s6">
+          <summary><span class="num">6</span><span class="st"><h2>Export</h2><span class="sum" id="sum6">STL files in print orientation</span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <div class="parts" id="parts"></div>
+            <div class="export-row">
+              <button class="btn primary" id="exportBtn" type="button">Download print files (.zip)</button>
+              <div class="export-msg" id="exportMsg" aria-live="polite"></div>
+            </div>
+            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL 0.6 nozzle project and a Core One HF 0.4 project, every part already placed across multiple beds with its print settings), a README with quantities, hardware and assembly order, and your settings as JSON. The projects open in PrusaSlicer 2.9 or newer.</p>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <section class="viewer" aria-label="3D preview">
+      <div id="stage"></div>
+      <div class="loadmsg" id="loadMsg">Loading the geometry kernel…</div>
+      <div class="vtools">
+        <div class="seg" data-view role="group" aria-label="View">
+          <button type="button" data-v="head" aria-pressed="true">Head</button>
+          <button type="button" data-v="exploded">Exploded</button>
+          <button type="button" data-v="kiosk">Full kiosk</button>
+          <button type="button" data-v="back">Back</button>
+        </div>
+        <span class="focus-pill" id="focusPill"><span id="focusName"></span><button type="button" id="focusClose">Show all</button></span>
+        <span class="busy" id="busy" data-idle="false"><i></i><span id="busyText">Starting</span></span>
+      </div>
+      <div class="stats" id="stats"></div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script type="module" src="./app.js"></script>
