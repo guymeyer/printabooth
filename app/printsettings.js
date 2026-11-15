@@ -8,7 +8,8 @@ export const materialOf = (c) => (MATERIALS.includes(c.print && c.print.material
 // preset files under presets/ (flattened PrusaSlicer system presets, see tools/prusa/flatten.py)
 export const presetKey = (c, printer) => (printer === "xl" ? `xl-${nozzleOf(c)}-${materialOf(c).toLowerCase()}` : `coreone-${materialOf(c).toLowerCase()}`);
 
-// nozzle temperature offset from the filament preset, by nozzle size
+// nozzle temperature: the generic filament's 0.4 nozzle temperature plus an offset by nozzle size (bigger nozzle, more flow,
+// more heat). Generic presets so any brand works; the maker's range on the spool label wins if it disagrees.
 const TEMP_OFFSET = { PETG: { 0.4: 0, 0.6: 5, 0.8: 10 }, PLA: { 0.4: 0, 0.6: 0, 0.8: 5 } };
 export const PLA_NOTE = "PLA softens above about 55 °C. Not recommended for hot cars, direct sun or outdoor summer events. Use PETG for those.";
 
@@ -33,9 +34,10 @@ export function printSettings(c, base) {
   const widths = Object.fromEntries(["extrusion_width", "perimeter_extrusion_width", "external_perimeter_extrusion_width",
     "infill_extrusion_width", "solid_infill_extrusion_width", "top_infill_extrusion_width"].map((k) => [k, P.ew]));
   // material, by nozzle size (the Core One stays a 0.4 HF nozzle)
+  const ref = base[`xl-0.4-${mat.toLowerCase()}`];
   const material = (b, nozzle) => {
-    const off = TEMP_OFFSET[mat][nozzle] || 0, o = {
-      temperature: num(b.temperature) + off, first_layer_temperature: num(b.first_layer_temperature) + off,
+    const off = TEMP_OFFSET[mat][nozzle] || 0, r = nozzle === 0.4 ? b : ref, o = {
+      temperature: num(r.temperature) + off, first_layer_temperature: num(r.first_layer_temperature) + off,
       filament_max_volumetric_speed: mat === "PETG" && nozzle === 0.8 ? Math.round(num(b.filament_max_volumetric_speed) * 0.8 * 10) / 10 : num(b.filament_max_volumetric_speed),
       ironing: ironing ? 1 : 0, ironing_type: "topmost",
     };
@@ -83,8 +85,8 @@ export function printSettings(c, base) {
   ];
   const off = TEMP_OFFSET[mat][nz] || 0;
   const matRows = [
-    ["Filament preset", xlBase.filament],
-    ["Nozzle temperature", `${xl.temperature} °C (preset ${num(xlBase.temperature)}${off ? ` +${off}` : ""}), first layer ${xl.first_layer_temperature} °C`],
+    ["Filament", `Generic ${mat}, any brand (preset ${xlBase.filament})`],
+    ["Nozzle temperature", `${xl.temperature} °C (generic ${mat} ${num(ref.temperature)}${off ? ` +${off} for the ${nz} nozzle` : ""}), first layer ${xl.first_layer_temperature} °C. Stay inside the range on your spool.`],
     ["Max volumetric speed", `${xl.filament_max_volumetric_speed} mm³/s${xl.filament_max_volumetric_speed !== num(xlBase.filament_max_volumetric_speed) ? ` (80% of ${num(xlBase.filament_max_volumetric_speed)})` : " (preset)"}`],
     ["Cooling", mat === "PLA" ? "100% fan from layer 4" : "Filament preset"],
     ["Ironing", ironing ? "On, topmost surfaces only" : "Off"],
@@ -96,7 +98,7 @@ export function printSettings(c, base) {
     ["Cassette", d.hug ? "Back down" : "Face down, supports under the back ledge"],
     ["Diffuser / base / ferrules", "Flat / top face down / stud down"],
   ];
-  const reminder = `Printer, print and filament presets in PrusaSlicer must all match a ${nz} mm nozzle and ${mat}. The projects select them; if you change one by hand, change all three.`;
+  const reminder = `Printer, print and filament presets in PrusaSlicer must all match a ${nz} mm nozzle and ${mat}. The projects select the Generic ${mat} filament preset; if you have a preset for your brand, pick its ${nz} mm version and keep the nozzle temperature above.`;
   return { nozzle: nz, material: mat, ew: P.ew, lh: P.lh, xl, coreone, per, geometry, settings, matRows, orientation, reminder, plaNote: mat === "PLA" ? PLA_NOTE : null };
 }
 

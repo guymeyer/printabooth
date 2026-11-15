@@ -2,7 +2,7 @@
 # carry, so PrusaSlicer selects those presets unmodified on open.
 #   python3 tools/prusa/flatten.py path/to/PrusaResearch.ini
 # PrusaResearch.ini is in the PrusaSlicer repo under resources/profiles/ (this repo used tag version_2.9.7).
-# Writes app/xl.config and app/coreone.config.
+# Writes app/presets/<printer>-<nozzle>-<material>.config and app/presets/index.json. Generic filament presets, so any brand works.
 import re, sys, json, os
 def parse(path):
     secs = {}; cur = None
@@ -42,11 +42,11 @@ def conds(printer, print_, filament):
     return {t: S[(t, n)].get('compatible_printers_condition', '(inherited)') for t, n in (('print', print_), ('filament', filament))}, flat('print', print_).get('compatible_printers_condition'), flat('filament', filament).get('compatible_printers_condition'), flat('filament', filament).get('compatible_prints_condition')
 # one project config per printer x nozzle x material; the app picks one and applies the computed print settings on top
 XL = {
-  '0.4': ('Original Prusa XL Input Shaper 0.4 nozzle', '0.20mm STRUCTURAL @XLIS 0.4', {'petg': 'Prusament PETG @XL', 'pla': 'Prusament PLA @XLIS'}),
-  '0.6': ('Original Prusa XL Input Shaper 0.6 nozzle', '0.32mm STRUCTURAL @XLIS 0.6', {'petg': 'Prusament PETG @XL 0.6', 'pla': 'Prusament PLA @XL 0.6'}),
-  '0.8': ('Original Prusa XL Input Shaper 0.8 nozzle', '0.40mm QUALITY @XLIS 0.8', {'petg': 'Prusament PETG @XL 0.8', 'pla': 'Prusament PLA @XL 0.8'}),
+  '0.4': ('Original Prusa XL Input Shaper 0.4 nozzle', '0.20mm STRUCTURAL @XLIS 0.4', {'petg': 'Generic PETG @XL', 'pla': 'Generic PLA @XLIS'}),
+  '0.6': ('Original Prusa XL Input Shaper 0.6 nozzle', '0.32mm STRUCTURAL @XLIS 0.6', {'petg': 'Generic PETG @XL 0.6', 'pla': 'Generic PLA @XL 0.6'}),
+  '0.8': ('Original Prusa XL Input Shaper 0.8 nozzle', '0.40mm QUALITY @XLIS 0.8', {'petg': 'Generic PETG @XL 0.8', 'pla': 'Generic PLA @XL 0.8'}),
 }
-CORE = ('Prusa CORE One HF0.4 nozzle', '0.20mm SPEED @COREONE HF0.4', {'petg': 'Prusament PETG @COREONE HF0.4', 'pla': 'Prusament PLA @COREONE HF0.4'})
+CORE = ('Prusa CORE One HF0.4 nozzle', '0.20mm SPEED @COREONE HF0.4', {'petg': 'Generic PETG @COREONE HF0.4', 'pla': 'Generic PLA @COREONE HF0.4'})
 sets = {}
 BASE = {}
 # the preset values the app's print-settings summary and overrides start from

@@ -23,7 +23,7 @@ Step 6 sets the nozzle (0.4, 0.6 or 0.8 mm, default 0.8) and material (PETG or P
 The download is a zip with:
 
 - STLs in print orientation, full-detail threads.
-- Two PrusaSlicer 2.9+ projects: one for a Prusa XL (single tool, the chosen nozzle and material) and one for a Core One (HF 0.4, the chosen material). Each loads with its printer, print and filament presets selected and every part already placed on its bed, across up to nine beds, with per-part settings applied.
+- Two PrusaSlicer 2.9+ projects: one for a Prusa XL (single tool, the chosen nozzle and material) and one for a Core One (HF 0.4, the chosen material). Each loads with its printer and print presets and the Generic PETG or PLA filament preset selected (any brand) and every part already placed on its bed, across up to nine beds, with per-part settings applied.
 - A README with quantities, hardware, print settings and assembly order, plus the settings as JSON.
 
 ## Layout
