@@ -212,6 +212,17 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
   .panel-inner { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.readout.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); }
+.readout.wide dd { white-space: normal; }
+.guide { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.guide b { color: var(--ink); font-weight: 600; }
+.restore { display: flex; gap: 8px; align-items: center; }
+.restore input[type=text] { flex: 1; min-width: 0; padding: 7px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--raised); font: 12px var(--f-mono); }
+.restore .btn { white-space: nowrap; }
+dialog.howto { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 0; border: 1px solid var(--line-2); border-radius: 14px; background: #fff; color: #111; }
+dialog.howto::backdrop { background: rgba(10, 14, 12, 0.55); }
+dialog.howto .hbar { position: sticky; top: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 12px; background: #fff; border-bottom: 1px solid #ddd; z-index: 1; }
+dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
 </style>
 
 <div class="app">
@@ -285,7 +296,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
                 <div class="field"><label for="ovl">Lip on the glass</label><div class="unit" data-u="mm"><input class="num-in" id="ovl" type="number" step="0.5" min="1" max="10" data-path="cass.overlap"></div></div>
                 <div class="field"><label for="liner">Felt liner</label><div class="unit" data-u="mm"><input class="num-in" id="liner" type="number" step="0.1" min="0" max="2" data-path="cass.liner"></div></div>
               </div>
-              <div class="row2">
+              <label class="toggle" for="dockOn">USB-C dock: fixed plug, the iPad plugs in as it slides down <span class="switch"><input type="checkbox" id="dockOn" data-path="dock.on"><span></span></span></label>
+              <div id="dockFields" style="display:grid;gap:10px">
+                <div class="field"><label for="dockBrand">Cable</label>
+                  <select id="dockBrand" data-path="dock.brand"><option value="apple">Apple 60W USB-C Charge Cable (1 m)</option><option value="anker">Anker USB-C to USB-C (240W, braided)</option><option value="amazon">Amazon Basics USB-C to USB-C 2.0</option><option value="custom">Custom: measure your plug</option></select>
+                  <a class="hint" id="dockLink" target="_blank" rel="noopener"></a></div>
+                <div class="row2" id="dockCustom">
+                  <div class="field"><label for="dkW">Head width</label><div class="unit" data-u="mm"><input class="num-in" id="dkW" type="number" step="0.1" data-path="dock.w"></div></div>
+                  <div class="field"><label for="dkT">Head thickness</label><div class="unit" data-u="mm"><input class="num-in" id="dkT" type="number" step="0.1" data-path="dock.t"></div></div>
+                  <div class="field"><label for="dkL">Head length (stiff part)</label><div class="unit" data-u="mm"><input class="num-in" id="dkL" type="number" step="0.5" data-path="dock.len"></div></div>
+                  <div class="field"><label for="dkC">Cable diameter</label><div class="unit" data-u="mm"><input class="num-in" id="dkC" type="number" step="0.1" data-path="dock.cable"></div></div>
+                </div>
+                <p class="hint" id="dockHint"></p>
+              </div>
+              <div class="row2" id="plugRoomRow">
                 <div class="field"><label for="pgap">USB-C plug room</label><div class="unit" data-u="mm"><input class="num-in" id="pgap" type="number" step="0.5" min="0" max="25" data-path="cass.portGap"></div></div>
                 <div class="field" id="portSideField"><span class="lbl">Port side</span>
                   <div class="seg" data-path="cass.portSide" role="group" aria-label="USB-C port side"><button type="button" data-v="auto">From camera</button><button type="button" data-v="both">Both edges</button></div>
@@ -299,6 +323,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
         <details class="step" id="s2">
           <summary><span class="num">2</span><span class="st"><h2>Shell</h2><span class="sum" id="sum2"></span></span><span class="chev">▶</span></summary>
           <div class="body">
+            <div id="ringFields" style="display:grid;gap:14px">
             <div class="field">
               <span class="lbl">Extension rings <output id="depthOut"></output></span>
               <div class="stepper"><button type="button" id="extMinus" aria-label="Fewer rings">−</button><output id="extOut">1</output><button type="button" id="extPlus" aria-label="More rings">+</button></div>
@@ -307,6 +332,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
             <div class="field"><label for="ring1D">Main shell depth <output id="ring1Out"></output></label><input id="ring1D" type="range" min="40" max="140" step="5" data-path="shell.ring1D">
               <p class="hint">Ring 1, which carries the finger scoop and the base. It never goes below the depth the base needs to sit fully under the head.</p></div>
             <div class="field"><label for="ringD">Extension ring depth <output data-for="shell.ringD"></output></label><input id="ringD" type="range" min="40" max="100" step="5" data-path="shell.ringD"></div>
+            </div>
+            <p class="hint" id="wallShellHint" hidden>Wall mount: no rings. The front frame glues onto a shallow wall case, set in Mount &amp; height.</p>
             <div class="field"><label for="cornerR">Corner radius <output data-for="shell.cornerR"></output></label><input id="cornerR" type="range" min="16" max="80" step="2" data-path="shell.cornerR"></div>
             <div class="field">
               <span class="lbl">Shell joints</span>
@@ -352,13 +379,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
                 <button type="button" data-v="threaded">Threaded</button><button type="button" data-v="plain">Plain</button><button type="button" data-v="none">Solid</button>
               </div>
             </div>
+            <p class="hint" id="wallBackHint" hidden>Wall mount: the back is a plain wall plate with two keyholes, so it has no accessory holes.</p>
             <div id="holeFields" style="display:grid;gap:14px">
               <div class="row3">
                 <div class="field"><label for="bd">Thread Ø</label><div class="unit" data-u="mm"><input class="num-in" id="bd" type="number" step="0.5" min="3" max="20" data-path="back.d"></div></div>
                 <div class="field"><label for="bp">Pitch</label><div class="unit" data-u="mm"><input class="num-in" id="bp" type="number" step="0.05" min="0.5" max="4" data-path="back.pitch"></div></div>
                 <div class="field"><label for="bg">Grid</label><div class="unit" data-u="mm"><input class="num-in" id="bg" type="number" step="1" min="10" max="60" data-path="back.grid"></div></div>
               </div>
-              <p class="hint">Placeholder thread spec. Measure a Thread Boards screw and type its diameter and pitch here; print one test hole first.</p>
+              <p class="hint">Sized for Thread Boards' 12 mm threaded screws on a 25 mm grid. Thread Boards doesn't publish its thread, so this is an estimate: print the thread test coupon (in Export) and try one of your screws before the full panel. Loose or tight? Change the clearance; wrong size? Measure the screw's outside diameter and the distance between crests and type them here.</p>
               <div class="holes-wrap">
                 <div class="holes-head"><span>Seen from behind the booth · click or drag to toggle</span><b id="holeCount"></b></div>
                 <svg id="holes" role="img" aria-label="Back panel thread layout"></svg>
@@ -381,9 +409,32 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
         </details>
 
         <details class="step" id="s5">
-          <summary><span class="num">5</span><span class="st"><h2>Legs &amp; height</h2><span class="sum" id="sum5"></span></span><span class="chev">▶</span></summary>
+          <summary><span class="num">5</span><span class="st"><h2>Mount &amp; height</h2><span class="sum" id="sum5"></span></span><span class="chev">▶</span></summary>
           <div class="body">
+            <div class="field">
+              <span class="lbl">Mount</span>
+              <div class="seg" data-path="mount.type" role="group" aria-label="Mount"><button type="button" data-v="tripod">Tripod</button><button type="button" data-v="post">Post</button><button type="button" data-v="wall">Wall</button></div>
+            </div>
             <div class="field"><label for="camH">Camera height <output id="camHOut"></output></label><input id="camH" type="range" min="42" max="72" step="0.5"></div>
+            <div id="postFields" style="display:grid;gap:14px">
+              <div class="field"><label for="pole">Pole (you supply it)</label><select id="pole" data-path="mount.pole"><option value="emt1">1″ EMT conduit (29.5 mm OD)</option><option value="emt125">1¼″ EMT conduit (38.4 mm OD)</option><option value="dowel125">1¼″ hardwood dowel (31.8 mm)</option><option value="closet">1⅜″ closet rod (34.9 mm)</option><option value="dowel15">1½″ hardwood dowel (38.1 mm)</option><option value="custom">Custom</option></select></div>
+              <div class="row2" id="poleCustom">
+                <div class="field"><label for="poleOD">Outside diameter</label><div class="unit" data-u="mm"><input class="num-in" id="poleOD" type="number" step="0.1" min="19" max="51" data-path="mount.od"></div></div>
+                <label class="toggle" for="poleHollow">Hollow (cable inside) <span class="switch"><input type="checkbox" id="poleHollow" data-path="mount.hollow"><span></span></span></label>
+              </div>
+              <div class="row2">
+                <div class="field"><label for="baseSize">Wood base, square</label><select id="baseSize" data-path="mount.base" data-num="1"><option value="450">450 mm (18″)</option><option value="500">500 mm (20″)</option><option value="600">600 mm (24″)</option><option value="700">700 mm (28″)</option></select></div>
+                <div class="field"><span class="lbl">Plywood layers</span><div class="seg" data-path="mount.layers" role="group" aria-label="Plywood layers"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button></div></div>
+              </div>
+              <dl class="readout wide" id="postOut"></dl>
+              <ol class="guide" id="woodGuide"></ol>
+            </div>
+            <div id="wallFields" style="display:grid;gap:14px">
+              <div class="field"><label for="wallD">Case depth <output id="wallDOut"></output></label><input id="wallD" type="range" min="30" max="90" step="5" data-path="mount.wallD"></div>
+              <dl class="readout wide" id="wallOut"></dl>
+              <p class="hint">The front frame, cassette and LED channel are the same as the stand. Behind them a shallow case and a flat wall plate replace the rings and back panel. The cable leaves through a notch in the bottom by the wall, or through the hole in the plate if it comes out of the wall.</p>
+            </div>
+            <div id="tripodFields" style="display:grid;gap:14px">
             <div class="field"><label for="splay">Leg splay <output data-for="legs.splay"></output></label><input id="splay" type="range" min="8" max="26" step="1" data-path="legs.splay"></div>
             <div class="field">
               <label for="dowel">Dowel diameter</label>
@@ -393,6 +444,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
             </div>
             <dl class="readout" id="legOut"></dl>
             <p class="hint">One leg points back so a push on the screen meets the strong side of the tripod. The base is a plain drum centered under the head; each leg threads into a socket bored into its underside, with a seat square to the leg so the ferrule sits flat. The power cable drops through the center of the drum.</p>
+            </div>
           </div>
         </details>
 
@@ -429,7 +481,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
               <button class="btn primary" id="exportBtn" type="button">Download print files (.zip)</button>
               <div class="export-msg" id="exportMsg" aria-live="polite"></div>
             </div>
-            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL project for the nozzle and material set in Print setup, and a Core One HF 0.4 project for the base and ferrules, every part already placed across multiple beds with its print settings), a README with quantities, hardware and assembly order, and your settings as JSON. The projects open in PrusaSlicer 2.9 or newer.</p>
+            <div class="export-row">
+              <button class="btn" id="howtoBtn" type="button">Instructions</button>
+              <button class="btn" id="codeCopy" type="button">Copy booth code</button>
+            </div>
+            <div class="field">
+              <label for="codeIn">Restore a booth</label>
+              <div class="restore"><input id="codeIn" type="text" spellcheck="false" autocomplete="off" placeholder="Paste a booth code (PB1…)"><button class="btn" id="codeLoad" type="button">Load</button><label class="btn" for="cfgFile">Open .json</label><input id="cfgFile" type="file" accept=".json,application/json" hidden></div>
+              <p class="hint" id="codeMsg" aria-live="polite">Every download carries its booth code (in the README and booth-config.json). Paste the code or open the JSON here to bring that booth back exactly.</p>
+            </div>
+            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL project for the nozzle and material set in Print setup, and a Core One HF 0.4 project for the base and ferrules, every part already placed across multiple beds with its print settings), illustrated instructions, a README with quantities and hardware, and your settings as JSON plus a booth code you can paste back in here. The projects open in PrusaSlicer 2.9 or newer.</p>
           </div>
         </details>
       </div>
@@ -452,6 +513,11 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
     </section>
   </main>
 </div>
+
+<dialog class="howto" id="howto" aria-label="Instructions">
+  <div class="hbar"><button class="btn" id="howtoSave" type="button">Download</button><button class="btn" id="howtoClose" type="button">Close</button></div>
+  <div id="howtoBody"></div>
+</dialog>
 
 <script src="./jszip.min.js"></script>
 <script type="module" src="./app.js"></script>

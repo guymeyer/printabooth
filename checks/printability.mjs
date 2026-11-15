@@ -12,10 +12,15 @@ const presets = {
   mini: () => { c.fitMode = 'hug'; c.tablet = { ...c.tablet, ...g.TABLETS['ipad-mini'], preset: 'ipad-mini' }; },
   pro: () => { c.fitMode = 'hug'; c.tablet = { ...c.tablet, ...g.TABLETS['ipad-pro-11'], preset: 'ipad-pro-11' }; },
   ledoff: () => { c.fitMode = 'hug'; c.led.on = false; },
+  wall: () => { c.fitMode = 'hug'; c.mount.type = 'wall'; },
+  post: () => { c.fitMode = 'hug'; c.mount.type = 'post'; },
+  postSolid: () => { c.fitMode = 'hug'; c.mount.type = 'post'; c.mount.pole = 'dowel15'; },
+  dock: () => { c.fitMode = 'hug'; c.orientation = 'portrait'; c.camSide = 'right'; c.dock.on = true; },
+  dockAnkerOff: () => { c.fitMode = 'hug'; c.orientation = 'portrait'; c.camSide = 'right'; c.dock.on = true; c.dock.brand = 'anker'; c.led.on = false; },
 };
 presets[cfgName]();
 const only = process.argv[3] ? process.argv[3].split(',') : null;
-const parts = [...new Set([...g.assembly(c).items.map(i => i.part), 'ferrule'])].filter(p => !only || only.includes(p));
+const parts = [...new Set([...g.assembly(c).items.map(i => i.part), ...(g.mountOf(c) === 'tripod' ? ['ferrule'] : g.mountOf(c) === 'post' ? ['flange'] : []), 'threadTest'])].filter(p => !only || only.includes(p));
 const W = process.env.WALLS ? process.env.WALLS.split(",").map(Number) : [0.9, 1.2];   // thinnest printable wall ~2 lines; override with WALLS=1.7 for a 0.8 nozzle
 function opening(cs, w) { const a = cs.offset(-w / 2, 'Round', 2, 24); const b = a.offset(w / 2, 'Round', 2, 24); a.delete(); return b; }
 function thinScan(m, axis, step) {

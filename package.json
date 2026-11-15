@@ -5,7 +5,7 @@
   "description": "Browser configurator for a 3D-printed modular iPad photo booth: preview the design and export print-ready STLs and PrusaSlicer projects.",
   "scripts": {
     "preview": "python3 tools/preview.py",
-    "check": "node checks/assembly-overlaps.mjs && node checks/slivers.mjs && node checks/led-walls.mjs && node checks/base-walls.mjs && node checks/ferrule-fit.mjs && node checks/tray-walls.mjs && node checks/nozzles.mjs && node checks/seam-groove.mjs",
+    "check": "node checks/assembly-overlaps.mjs && node checks/slivers.mjs && node checks/led-walls.mjs && node checks/base-walls.mjs && node checks/ferrule-fit.mjs && node checks/tray-walls.mjs && node checks/nozzles.mjs && node checks/seam-groove.mjs && node checks/mounts-dock.mjs",
     "check:print": "node checks/printability.mjs hugL"
   },
   "dependencies": {

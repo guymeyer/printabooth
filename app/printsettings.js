@@ -1,6 +1,6 @@
 // Print settings from the Nozzle and Material settings: the values written into the PrusaSlicer projects, the README and the
 // on-page summary all come from printSettings(), so they always agree with each other and with the snapped geometry.
-import { derive } from "./geom.js";
+import { derive, mountOf } from "./geom.js";
 
 export const MATERIALS = ["PETG", "PLA"];
 export const nozzleOf = (c) => derive(c).plan.nozzle;
@@ -61,6 +61,10 @@ export function printSettings(c, base) {
     ferrule: { perimeters: 6, fill_density: "100%", brim_width: 5 },
   };
   per.ringExt2 = per.ringExtLast = per.ringExt; per.cap = per.cassKey = {};
+  per.wallCase = per.ring1; per.wallBack = per.back;
+  per.postCap = per.flange = { perimeters: 5, fill_density: "40%", fill_pattern: "gyroid" };
+  per.dockClip = { perimeters: 4, fill_density: "100%" };
+  per.threadTest = per.back;
 
   // what shows on the page and in the README
   const mm = (v) => `${(+v).toFixed(2)} mm`, ln = (t) => `${mm(t)} (${lines(t, P.ew)} lines)`, ly = (t) => `${mm(t)} (${Math.round(t / P.lh)} layers)`;
@@ -91,12 +95,14 @@ export function printSettings(c, base) {
     ["Cooling", mat === "PLA" ? "100% fan from layer 4" : "Filament preset"],
     ["Ironing", ironing ? "On, topmost surfaces only" : "Off"],
   ];
+  const mt = mountOf(c);
   const orientation = [
     ["Front frame", "Front face down on the sheet (the visible face gets the sheet's finish); seam groove at the back of the bed"],
-    ["Rings", "Upright, front edge down: every visible face is a wall; underside (seam groove) toward the back of the bed"],
-    ["Back panel", "Outer face down on the sheet"],
+    [mt === "wall" ? "Wall case" : "Rings", "Upright, front edge down: every visible face is a wall; underside (seam groove) toward the back of the bed"],
+    [mt === "wall" ? "Wall plate" : "Back panel", mt === "wall" ? "Wall face down (keyhole pockets open upward)" : "Outer face down on the sheet"],
     ["Cassette", d.hug ? "Back down" : "Face down, supports under the back ledge"],
-    ["Diffuser / base / ferrules", "Flat / top face down / stud down"],
+    ...(mt === "tripod" ? [["Diffuser / base / ferrules", "Flat / top face down / stud down"]] : mt === "post" ? [["Diffuser / post cap / floor flange", "Flat / disc down / disc down"]] : [["Diffuser", "Flat"]]),
+    ...(d.dock ? [["Dock clip", "Back down, open side up"]] : []),
   ];
   const reminder = `Printer, print and filament presets in PrusaSlicer must all match a ${nz} mm nozzle and ${mat}. The projects select the Generic ${mat} filament preset; if you have a preset for your brand, pick its ${nz} mm version and keep the nozzle temperature above.`;
   return { nozzle: nz, material: mat, ew: P.ew, lh: P.lh, xl, coreone, per, geometry, settings, matRows, orientation, reminder, plaNote: mat === "PLA" ? PLA_NOTE : null };

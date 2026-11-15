@@ -1,7 +1,8 @@
 import * as THREE from "./three.module.js";
 import { OrbitControls } from "./OrbitControls.js";
 import { toCreasedNormals } from "./BufferGeometryUtils.js";
-import { DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive } from "./geom.js";
+import { DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive, mountOf, poleOf, postSpec, flangeSpec, POST, FLANGE, PLY, KEY, DOCK_PLUGS, plugOf } from "./geom.js";
+import { howtoBody, howtoPage, HOWTO_CSS } from "./howto.js";
 import { PRINTERS } from "./pack3mf.js";
 import { printSettings, applyConfig, presetKey } from "./printsettings.js";
 
@@ -20,6 +21,7 @@ try { const s = localStorage.getItem(STORE); if (s) cfg = merge(clone(DEFAULTS),
 // migrate settings saved by earlier versions: the cap is gone (slide-in only), and the LED channel now sets the lip depth
 cfg.cap.lock = "none"; if ((cfg.cass.bumpCorner || "auto") === "auto") cfg.cass.bumpCorner = "pair"; if (cfg.shell.lip === 3) cfg.shell.lip = DEFAULTS.shell.lip; if (cfg.shell.cornerR === 44) cfg.shell.cornerR = DEFAULTS.shell.cornerR; cfg.legs.style = "puck";
 if (cfg.led.depth === 10) cfg.led.depth = DEFAULTS.led.depth;
+if (cfg.back.d === 8 && cfg.back.pitch === 1.25) { cfg.back.d = DEFAULTS.back.d; cfg.back.pitch = DEFAULTS.back.pitch; }   // old placeholder thread, far smaller than Thread Boards
 if (!cfg.shell.ring1D || cfg.shell.ring1D < DEFAULTS.shell.ring1D) cfg.shell.ring1D = DEFAULTS.shell.ring1D;
 const save = () => { try { localStorage.setItem(STORE, JSON.stringify(cfg)); } catch (e) {} };
 
@@ -50,7 +52,16 @@ function call(msg, progress) {
 }
 function busy(on, text) { $("#busy").dataset.idle = String(!on); $("#busyText").textContent = text; }
 
-const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "diffuser", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "hub", "ferrule"];
+const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "diffuser", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
+// parts this booth uses (built for the preview); the export list adds quantities
+function usedParts() {
+  const mt = mountOf(cfg), d = derive(cfg);
+  return ALL_PARTS.filter((p) => !(p === "diffuser" && !cfg.led.on) && !(p === "dockClip" && !d.dock)
+    && !(mt === "wall" && ["ring1", "ringExt", "ringExt2", "ringExtLast", "back", "hub", "ferrule", "postCap", "flange"].includes(p))
+    && !(mt !== "wall" && ["wallCase", "wallBack"].includes(p))
+    && !(mt !== "tripod" && ["hub", "ferrule"].includes(p)) && !(mt !== "post" && ["postCap", "flange"].includes(p))
+    && !(p === "threadTest" && (mt === "wall" || cfg.back.mode === "none")));
+}
 let timer = null;
 function rebuild(delay = 220) {
   clearTimeout(timer);
@@ -63,7 +74,8 @@ async function runBuild() {
   if (inFlight) { pending = true; return; }
   inFlight = true; busy(true, "Building");
   try {
-    const parts = ALL_PARTS.filter((p) => p !== "diffuser" || cfg.led.on);
+    const parts = usedParts();
+    for (const k of Object.keys(GEO)) if (!parts.includes(k)) { GEO[k].geo.dispose(); GEO[k].edges.dispose(); delete GEO[k]; }
     const res = await call({ type: "build", cfg: clone(cfg), parts });
     holes = res.holes; sockets = res.sockets;
     for (const [name, g] of Object.entries(res.parts)) setGeometry(name, g);
@@ -100,13 +112,14 @@ const root = new THREE.Group(); scene.add(root);
 
 const COLORS = {
   shell: 0xe3e1db, cassette: 0x2f5d62, diffuser: 0xffc56b, hub: 0x5f6461, ferrule: 0x6d726f,
-  wood: 0xb98a55, tablet: 0x1b1e22, screen: 0x24384a,
+  wood: 0xb98a55, tablet: 0x1b1e22, screen: 0x24384a, steel: 0xa9aeb0, ply: 0xd8b98a, wall: 0xcfd2cc,
 };
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.0, ...extra });
 const MATS = {
   cassette: mat(COLORS.cassette), cassKey: mat(COLORS.cassette), frame: mat(COLORS.shell), cap: mat(COLORS.shell), ring1: mat(COLORS.shell),
   ringExt: mat(COLORS.shell), ringExt2: mat(COLORS.shell), ringExtLast: mat(COLORS.shell), back: mat(COLORS.shell), hub: mat(COLORS.hub), ferrule: mat(COLORS.ferrule),
   diffuser: mat(COLORS.diffuser, { emissive: 0xffa53a, emissiveIntensity: 0.55, roughness: 0.4, transparent: true, opacity: 0.92 }),
+  wallCase: mat(COLORS.shell), wallBack: mat(COLORS.shell), postCap: mat(COLORS.hub), flange: mat(COLORS.hub), dockClip: mat(COLORS.hub), threadTest: mat(COLORS.shell),
 };
 const edgeMat = new THREE.LineBasicMaterial({ color: 0x1d2420, transparent: true, opacity: 0.22 });
 const GEO = {};
@@ -180,7 +193,7 @@ function composeScene() {
     if (exploded) {
       const off = {
         cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], cap: [0, 150, 0], diffuser: [0, 0, -110], ring1: [0, 0, 60],
-        back: [0, 0, 60 * (cfg.shell.nExt + 2)], hub: [0, -150, 60],
+        back: [0, 0, 60 * (cfg.shell.nExt + 2)], hub: [0, -150, 60], postCap: [0, -150, 60], wallCase: [0, 0, 60], wallBack: [0, 0, 140], dockClip: [0, -70, -90],
       }[it.part];
       if (it.part.startsWith("ringExt")) { extIndex++; m.position.z += 60 * (extIndex + 1); }
       else if (off) m.position.add(new THREE.Vector3(...off));
@@ -193,7 +206,23 @@ function composeScene() {
       root.add(t);
     }
   }
-  if (kiosk && sockets) {
+  const mt = mountOf(cfg);
+  if (kiosk && mt !== "tripod") {
+    const floorY = d.camShell[1] - cfg.legs.camHeight;
+    addScale(floorY, d, mt === "wall" ? asm.headDepth + 0.5 : 900);
+    if (mt === "wall") {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(5200, 2600, 20), mat(COLORS.wall, { roughness: 0.95 }));
+      w.position.set(-700, floorY + 1300, asm.headDepth + 11); w.userData.own = true; root.add(w);
+    } else {
+      const pz = fd + d.hubZc, S = d.post, F = flangeSpec(cfg), bt = PLY.t * (+cfg.mount.layers || 2), B = +cfg.mount.base || 600;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(B, bt, B), mat(COLORS.ply, { roughness: 0.85 })); base.position.set(0, floorY + bt / 2, pz); base.userData.own = true; root.add(base);
+      if (GEO.flange) { const f = partMesh("flange"); f.position.set(0, floorY + bt, pz); root.add(f); }
+      const y0 = floorY + bt + FLANGE.floor, y1 = -d.Sy - 0.05 - POST.disc;
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(S.od / 2, S.od / 2, y1 - y0, 40), mat(S.hollow ? COLORS.steel : COLORS.wood, { roughness: S.hollow ? 0.45 : 0.8, metalness: S.hollow ? 0.4 : 0 }));
+      pole.position.set(0, (y0 + y1) / 2, pz); pole.userData.own = true; root.add(pole);
+    }
+  }
+  if (kiosk && sockets && mt === "tripod") {
     const legs = legGeometry(cfg, sockets);
     addScale(legs[0].floorY, d);
     for (const lg of legs) {
@@ -235,7 +264,7 @@ function textSprite(lines, color, size = 64) {
   sp.userData.own = true;
   return sp;
 }
-function addScale(floorY, d) {
+function addScale(floorY, d, boardZ = 900) {
   const dark = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue("--viewer").trim()).getHSL({}).l < 0.4;
   const fig = dark ? 0x59615d : 0xaab1ad, ink = dark ? "#9aa49f" : "#5e6763";
   for (const p of PEOPLE) {
@@ -263,7 +292,7 @@ function addScale(floorY, d) {
   ctx.fillStyle = "#e08a17"; ctx.fillText(`camera ${Math.floor(cfg.legs.camHeight / 25.4 / 12)}′ ${(cfg.legs.camHeight / 25.4 % 12).toFixed(1).replace(/\.0$/, "")}″`, cv.width - 300, cy - 6);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const board = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
-  board.rotation.y = Math.PI; board.position.set(-650, floorY + H / 2, 900); board.userData.own = true;
+  board.rotation.y = Math.PI; board.position.set(-650, floorY + H / 2, boardZ); board.userData.own = true;
   root.add(board);
   const floor = new THREE.Mesh(new THREE.CircleGeometry(2200, 64), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: dark ? 0.18 : 0.05 }));
   floor.rotation.x = -Math.PI / 2; floor.position.set(-500, floorY - 1, 300); floor.userData.own = true;
@@ -397,7 +426,43 @@ function syncControls() {
   $("#sum2").textContent += " · slide-in";
   const n = holes ? holes.all.filter((h) => isOn(h)).length : 0;
   $("#sum4").textContent = cfg.back.mode === "none" ? "Solid" : `${n} ${cfg.back.mode} holes on a ${cfg.back.grid} mm grid`;
-  $("#sum5").textContent = `Camera at ${inch(cfg.legs.camHeight)}, ${cfg.legs.splay}° splay`;
+  // mount
+  const mt = mountOf(cfg);
+  $("#tripodFields").hidden = mt !== "tripod"; $("#postFields").hidden = mt !== "post"; $("#wallFields").hidden = mt !== "wall";
+  $("#ringFields").hidden = mt === "wall"; $("#wallShellHint").hidden = mt !== "wall";
+  $("#wallBackHint").hidden = mt !== "wall"; $("[data-path='back.mode']").closest(".field").hidden = mt === "wall";
+  if (mt === "wall") $("#holeFields").hidden = true;
+  $("#poleCustom").hidden = cfg.mount.pole !== "custom";
+  $("#wallDOut").textContent = d.wallD > (+cfg.mount.wallD || 0) ? `${d.wallD} mm (minimum)` : `${d.wallD} mm`;
+  if (mt === "wall") {
+    const w = wallNumbers();
+    $("#wallOut").innerHTML = `<dt>Screws, level, apart</dt><dd class="big">${w.span} mm · ${(w.span / 25.4).toFixed(1)}″</dd>
+      <dt>Top of the slots from the floor</dt><dd>${mm(w.lockH)} · ${inch(w.lockH)}</dd>
+      <dt>Screws</dt><dd>#8 or M4 pan head, head ≤ ${KEY.head - 0.5} mm</dd>
+      <dt>Leave the heads off the wall by</dt><dd>3 mm</dd>
+      <dt>Stands off the wall</dt><dd>${assembly(cfg).headDepth.toFixed(0)} mm</dd>`;
+  }
+  if (mt === "post") {
+    const p = postNumbers();
+    $("#postOut").innerHTML = `<dt>Cut the pole to</dt><dd class="big">${mm(p.pole)} · ${inch(p.pole)}</dd>
+      <dt>Base</dt><dd>${p.B} × ${p.B} mm, ${p.layers} × 18 mm ply, ${p.baseKg.toFixed(1)} kg</dd>
+      <dt>Tips at a push on the screen of</dt><dd>${p.tipKg.toFixed(1)} kg</dd>
+      <dt>${p.addKg > 0 ? "Add for 3 kg of push" : "Extra weight"}</dt><dd>${p.addKg > 0 ? `${Math.ceil(p.addKg)} kg (a weight plate under the base)` : "None needed"}</dd>`;
+    $("#woodGuide").innerHTML = woodGuide(p).map((t) => `<li>${t}</li>`).join("");
+  }
+  // dock
+  const dk = cfg.dock || {};
+  $("#dockFields").hidden = !dk.on; $("#plugRoomRow").hidden = !!d.dock;
+  $("#dockCustom").hidden = dk.brand !== "custom";
+  { const b = DOCK_PLUGS[dk.brand], a = $("#dockLink");
+    a.hidden = !b || !b.url; if (b && b.url) { a.href = b.url; a.textContent = `Get it: ${b.label} ↗`; } }
+  { const pl = plugOf(cfg);
+    $("#dockHint").textContent = !dk.on ? "" : d.dock
+      ? `The plug stands in a printed clip at the bottom of the slot, pointing up. Plug head ${pl.w} × ${pl.t} × ${pl.len} mm${dk.brand === "custom" ? "" : " (typical; measure yours, and switch to Custom if it differs)"}. Print the clip first and check the fit; it's a 10-minute print. Makes the shell ${(d.Sh - derive({ ...cfg, dock: { ...dk, on: false } }).Sh).toFixed(0)} mm taller.`
+      : "Docking works in portrait only: the plug points up, so the iPad's USB-C port has to be on its bottom edge. In landscape the port is on a side, so plug the cable in before sliding the cassette down.";
+  }
+  $("#sum5").textContent = mt === "tripod" ? `Tripod, camera at ${inch(cfg.legs.camHeight)}, ${cfg.legs.splay}° splay` : mt === "post" ? `Post, camera at ${inch(cfg.legs.camHeight)}` : `Wall, camera at ${inch(cfg.legs.camHeight)}`;
+  if (d.dock) $("#sum1").textContent += ", dock";
   renderPrint();
 }
 function changed(delay) { save(); syncControls(); rebuild(delay); }
@@ -596,12 +661,41 @@ function legNumbers() {
   const r = feet.reduce((a, f) => a + Math.hypot(f[0] - cx, f[1] - cz), 0) / 3;
   return { L, cut, r };
 }
+// wall: keyhole spacing and the height of the slot tops for the camera height
+function wallNumbers() {
+  const d = derive(cfg), [k] = d.keyholes, lockY = d.keyLockY;
+  return { span: 2 * Math.abs(k[0]), lockH: cfg.legs.camHeight - (d.camShell[1] - lockY) };
+}
+// post: pole length, base weight and how hard a push on the screen tips it over (square base, push square to an edge)
+function postNumbers() {
+  const d = derive(cfg), S = d.post, layers = +cfg.mount.layers || 2, B = +cfg.mount.base || 600, bt = PLY.t * layers;
+  const floorY = d.camShell[1] - cfg.legs.camHeight, top = -d.Sy - 0.05 - POST.disc;
+  const pole = Math.floor(top - (floorY + bt + FLANGE.floor) - 2);
+  const baseKg = (B / 1000) ** 2 * (bt / 1000) * PLY.density;
+  const poleKg = (pole / 1000) * (S.hollow ? (S.od > 34 ? 1.5 : 0.95) : Math.PI * (S.od / 2000) ** 2 * 700);
+  const total = baseKg + poleKg + 2.0, h = cfg.legs.camHeight / 1000, arm = B / 2000;
+  const tipKg = (total * arm) / h, addKg = (3 * h) / arm - total;
+  return { pole, B, layers, bt, baseKg, tipKg, addKg, hollow: S.hollow, od: S.od };
+}
+function woodGuide(p) {
+  const steps = [
+    `Cut ${p.layers === 2 ? "two" : "one"} <b>${p.B} mm</b> square${p.layers === 2 ? "s" : ""} of 18 mm (¾″) plywood${p.layers === 2 ? "; glue and screw them together, grain crossed" : ""}.`,
+    "Round the edges with a 6 mm roundover or sandpaper, then seal (oil, or primer and paint).",
+    `Mark the centre; screw the <b>floor flange</b> there with four #8 × 1¼″ (4 × 30 mm) countersunk wood screws, the thumb screw toward the back.`,
+    p.hollow ? "Cable: it runs down inside the pole and out of the slot under the flange, toward the back. Cut a 10 mm groove from the flange to the back edge so the base sits flat, or let the cable lie on top." : "Cable: clip it to the back of the pole every 30 cm.",
+    "Stick four rubber feet near the corners so it sits flat on uneven floors.",
+    `Cut the pole to <b>${p.pole} mm</b>, push it into the flange and the post cap, and snug both thumb screws.`,
+  ];
+  if (p.addKg > 0) steps.push(`For busy events, add about <b>${Math.ceil(p.addKg)} kg</b> under the base (a steel plate or barbell plate screwed to the underside).`);
+  return steps;
+}
 function renderStats() {
   const d = derive(cfg), depth = assembly(cfg).headDepth, ln = legNumbers();
   const stats = [
     ["Face", `${d.Sw.toFixed(0)} × ${d.Sh.toFixed(0)}<small> mm</small>`],
     ["Head depth", `${depth.toFixed(0)}<small> mm</small>`],
-    ["Dowel cut", ln ? `${(ln.cut / 25.4).toFixed(1)}″<small> × 3</small>` : "–"],
+    mountOf(cfg) === "tripod" ? ["Dowel cut", ln ? `${(ln.cut / 25.4).toFixed(1)}″<small> × 3</small>` : "–"]
+      : mountOf(cfg) === "post" ? ["Pole cut", `${(postNumbers().pole / 25.4).toFixed(1)}″<small> × 1</small>`] : ["On the wall", `${wallNumbers().span}<small> mm screws</small>`],
     ["Bezel to screen", `${d.bezel.side.toFixed(0)}<small> side · </small>${d.bezel.top.toFixed(0)}<small> top mm</small>`],
   ];
   $("#stats").innerHTML = stats.map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
@@ -620,12 +714,16 @@ function exportList() {
     ["cassette", 1], ...(cfg.fitMode !== "hug" && (cfg.cap.lock || "none") === "none" ? [["cassKey", 1]] : []), ["frame", 1], ...(cfg.cap.lock && cfg.cap.lock !== "none" ? [["cap", 1]] : []), ["ring1", 1],
   ];
   if (cfg.led.on) list.push(["diffuser", 1]);
+  if (derive(cfg).dock) list.push(["dockClip", 1]);
+  const mt = mountOf(cfg);
+  if (mt === "wall") { list.splice(list.findIndex(([n]) => n === "ring1"), 1); list.push(["wallCase", 1], ["wallBack", 1]); return list; }
   const glue = cfg.shell.join !== "screws";
   if (glue) {
     if (cfg.shell.nExt > 0) list.push(["ringExt", cfg.shell.nExt]);
   } else if (cfg.shell.nExt > 0) list.push(["ringExt", Math.ceil(cfg.shell.nExt / 2)]);
   if (!glue && cfg.shell.nExt > 1) list.push(["ringExt2", Math.floor(cfg.shell.nExt / 2)]);
-  list.push(["back", 1], ["hub", 1], ["ferrule", 3]);
+  list.push(["back", 1], ...(mt === "post" ? [["postCap", 1], ["flange", 1]] : [["hub", 1], ["ferrule", 3]]));
+  if (cfg.back.mode !== "none") list.push(["threadTest", 1]);
   return list;
 }
 const selected = new Set(ALL_PARTS);
@@ -663,7 +761,7 @@ function slug(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(
 function readme(sizes, projNotes = []) {
   const d = derive(cfg), ln = legNumbers(), lines = [];
   const tl = (TABLETS[cfg.tablet.preset] || TABLETS.custom).label;
-  lines.push("CASSETTE BOOTH — PRINT PACK", "", `Tablet: ${tl}, ${cfg.orientation}`, `Face: ${d.Sw} x ${d.Sh} mm (${cfg.fitMode === "hug" ? "hugged to this tablet" : "universal " + d.Cw + " mm cassette"}), head depth ${assembly(cfg).headDepth.toFixed(0)} mm (${cfg.shell.nExt} extension rings)`, "");
+  lines.push("CASSETTE BOOTH — PRINT PACK", "", `Tablet: ${tl}, ${cfg.orientation}`, `Face: ${d.Sw} x ${d.Sh} mm (${cfg.fitMode === "hug" ? "hugged to this tablet" : "universal " + d.Cw + " mm cassette"}), head depth ${assembly(cfg).headDepth.toFixed(0)} mm (${mountOf(cfg) === "wall" ? "wall case" : `${cfg.shell.nExt} extension rings`}), ${mountOf(cfg)} mount${d.dock ? ", USB-C dock" : ""}`, "");
   if (projNotes.length) lines.push("PRUSASLICER PROJECTS (open in PrusaSlicer 2.9 or newer: File > Open project)", ...projNotes,
     "  Each opens with the printer, print and filament presets selected and every part already placed on its bed, with the",
     "  per-part settings below applied as object settings. Use Slice all, then Export all G-codes. If your installed profiles",
@@ -675,7 +773,7 @@ function readme(sizes, projNotes = []) {
   }
   if (cfg.fitMode === "hug") lines.push("", "BEZEL LOCK: the iPad lies face-forward in the tray; the frame lip covers " + cfg.cass.overlap + " mm of its black glass border.",
     "  Stick " + cfg.cass.liner + " mm felt or microfiber tape on the back of the lip so the glass never touches bare plastic.",
-    "  Use a right-angle USB-C cable whose plug fits in " + cfg.cass.portGap + " mm beside the port; the cable exits backward through the tray.");
+    d.dock ? "  The USB-C plug stands fixed in the dock clip; the iPad plugs onto it as the cassette drops in." : "  Use a right-angle USB-C cable whose plug fits in " + cfg.cass.portGap + " mm beside the port; the cable exits backward through the tray.");
   if (PRESET_BASE) {
     const ps = printSettings(cfg, PRESET_BASE), xlB = PRESET_BASE[presetKey(cfg, "xl")], coB = PRESET_BASE[presetKey(cfg, "coreone")];
     const row = ([k, v, note]) => `  ${k}: ${v}${note ? ` (${note})` : ""}`;
@@ -693,41 +791,51 @@ function readme(sizes, projNotes = []) {
       "  Print one ring's socket corner and the frame's tongue corner as a test before the full set.", "");
   }
   lines.push("HARDWARE");
-  const I = insertSpec(cfg), M = `M${I.screw}`, nRings = 1 + cfg.shell.nExt;
+  const I = insertSpec(cfg), M = `M${I.screw}`, nRings = 1 + cfg.shell.nExt, mt = mountOf(cfg), dk = d.dock;
   const glue = cfg.shell.join !== "screws";
-  const nIns = glue ? 4 + (cfg.cap.lock === "screws" ? 2 : 0) : 4 + 4 * nRings + 4 + (cfg.cap.lock === "screws" ? 2 : 0);
-  lines.push(`  ${nIns} x ${M} heat-set inserts, ${I.len} mm long (printed holes ${I.hole} mm, ${I.depth.toFixed(1)} mm deep):`);
-  if (glue) lines.push(`       4 in the hub top${cfg.cap.lock === "screws" ? ", 2 in ring 1's cap boss" : ""}`);
-  else {
-    lines.push(`       4 in the frame's rear face, 4 in the rear lugs of every ring, 4 in the hub top${cfg.cap.lock === "screws" ? ", 2 in ring 1's cap boss" : ""}`);
-    lines.push(`  ${4 * nRings} x ${M} x ${screwLen(6, I)} mm socket head: ring-to-ring joints (through each ring's front lugs)`);
+  const baseIns = mt === "wall" ? 0 : 4;
+  const nIns = (glue ? baseIns : baseIns + 4 + 4 * nRings) + (cfg.cap.lock === "screws" ? 2 : 0);
+  if (nIns) {
+    lines.push(`  ${nIns} x ${M} heat-set inserts, ${I.len} mm long (printed holes ${I.hole} mm, ${I.depth.toFixed(1)} mm deep):`);
+    lines.push(glue ? `       4 in the ${mt === "post" ? "post cap" : "hub"} top` : `       4 in the frame's rear face, 4 in the rear lugs of every ring, 4 in the ${mt === "post" ? "post cap" : "hub"} top`);
+    if (!glue) lines.push(`  ${4 * nRings} x ${M} x ${screwLen(6, I)} mm socket head: ring-to-ring joints (through each ring's front lugs)`);
   }
-  if (glue) lines.push("  Glue: ASA/ABS - acetone or ABS slurry (solvent weld). PETG - 2-part epoxy (30-minute gives time to align) or gel CA.");
-  if (!glue) lines.push(`  8 x ${M} x ${screwLen(cfg.back.t - I.head_h, I)} mm: back panel (counterbored, from outside; 4 used, 4 spare holes)`);
-  lines.push(`  4 x ${M} x ${screwLen(9 - I.head_h + 4, I)} mm: hub to ring 1 (from inside, through the bottom boss)`);
-  if (cfg.cap.lock && cfg.cap.lock !== "none") lines.push({ screws: `  Cap: 2 x ${M} x ${screwLen(2.2, I)} mm, low-profile heads (into the inserts in ring 1's cap boss)`, magnets: "  Cap: 4 x 6 x 3 mm neodymium magnets (2 in the cap tab, 2 in ring 1; check polarity)", camlock: "  Cap: 1 x 16 mm cabinet cam lock, about 8 mm grip (D-cut hole; test-fit before printing the cap)" }[cfg.cap.lock]);
-  if (ln) lines.push(`  3 x ${(cfg.legs.dowel / 25.4).toFixed(2)}" hardwood dowel, cut ${(ln.cut / 25.4).toFixed(1)}" (${ln.cut.toFixed(0)} mm) each`);
-  lines.push("  Epoxy + 5 mm pin or screw through each ferrule cross-hole", "  Right-angle USB-C cable (routes down through the hub center)");
+  if (glue) lines.push("  Glue: PETG or PLA - 2-part epoxy (30-minute gives time to align) or gel CA. ASA/ABS - acetone or ABS slurry.");
+  if (!glue && mt !== "wall") lines.push(`  8 x ${M} x ${screwLen(cfg.back.t - I.head_h, I)} mm: back panel (counterbored, from outside; 4 used, 4 spare holes)`);
+  if (mt !== "wall") lines.push(`  4 x ${M} x ${screwLen(9 - I.head_h + 4, I)} mm: ${mt === "post" ? "post cap" : "hub"} to ring 1 (from inside, through the bottom boss)`);
+  if (mt === "tripod") {
+    if (ln) lines.push(`  3 x ${(cfg.legs.dowel / 25.4).toFixed(2)}" hardwood dowel, cut ${(ln.cut / 25.4).toFixed(1)}" (${ln.cut.toFixed(0)} mm) each`);
+    lines.push("  Epoxy + 5 mm pin or screw through each ferrule cross-hole");
+  } else if (mt === "post") {
+    const pn = postNumbers(), pl = poleOf(cfg);
+    lines.push(`  1 x ${pl.label}, cut to ${pn.pole} mm (${(pn.pole / 25.4).toFixed(1)}")`,
+      "  2 x M5 heat-set insert (9.5 mm) + 2 x M5 x 16 thumb screw: one in the post cap, one in the floor flange",
+      "  4 x #8 x 1-1/4\" (4 x 30 mm) countersunk wood screws: flange to the base",
+      `  Plywood 18 mm (3/4"): ${pn.layers} x ${pn.B} x ${pn.B} mm, wood glue, 4 rubber feet${pn.addKg > 0 ? `, about ${Math.ceil(pn.addKg)} kg of weight under the base for busy events` : ""}`);
+  } else {
+    const w = wallNumbers();
+    lines.push(`  2 x #8 or M4 pan-head screws with wall anchors rated 10 kg+ (or one into a stud): ${w.span} mm apart, level, heads 3 mm off the wall`,
+      `  The tops of the keyhole slots sit ${w.lockH.toFixed(0)} mm (${(w.lockH / 25.4).toFixed(1)}") off the floor for a ${(cfg.legs.camHeight / 25.4).toFixed(1)}" camera height`);
+  }
+  if (dk) lines.push(`  USB-C dock: ${(DOCK_PLUGS[cfg.dock.brand] || DOCK_PLUGS.custom).label}${DOCK_PLUGS[cfg.dock.brand] && DOCK_PLUGS[cfg.dock.brand].url ? " - " + DOCK_PLUGS[cfg.dock.brand].url : ""}`,
+    `       plug head ${dk.w} x ${dk.t} x ${dk.len} mm, cable ${dk.cable} mm (measure yours). 2 x M3 x 8 button head + 2 x M3 x 4 short heat-set inserts, 1 small zip tie`);
+  else lines.push(`  Right-angle USB-C cable (${mt === "wall" ? "leaves through the notch in the bottom, or the hole in the wall plate" : mt === "post" ? (postSpec(cfg).hollow ? "runs down inside the pole" : "drops beside the pole; clip it to the back") : "routes down through the base"})`);
   if (cfg.led.on) lines.push(`  LED strip up to ${cfg.led.w - 1} mm wide. ${d.led.strips > 1 ? `Cut ${d.led.strips} pieces, each` : "Cut to"} ${d.led.strip.toFixed(0)} mm (${(d.led.strip / 25.4).toFixed(1)}"), at the nearest cut mark below that${d.led.strips > 1 ? ". Each starts under the bottom inlet cover and runs around the bottom corner and up one side to its shoulder; wire them in parallel at the inlet" : ""}`);
-  if (cfg.back.mode !== "none") lines.push(`  Back: ${holes.all.filter(isOn).length} ${cfg.back.mode} holes, ${cfg.back.d} mm x ${cfg.back.pitch} pitch on a ${cfg.back.grid} mm grid`);
-  lines.push("", "ASSEMBLY",
-    "  1. Melt inserts into the frame rear face, the REAR lugs of every ring, the cap boss on ring 1 and the hub top.",
-...(glue ? [
-    "  2. Dry-fit first: each tongue (rear edge of the front bezel and every ring) slides into the socket in the front of the next ring.",
-    "     Ring 1's front face is the cassette stop; the bezel glues onto it. The shell parts print front-face down (the cassette tray back-down) with no supports.",
-    "     The back panel glues on too: its groove takes the last ring's tongue. Mount any inside accessories before it goes on, or reach in later through the front with the cassette out.",
-    "  3. Glue one joint at a time: thin bead in the socket, press together on a flat table, check the seam all round, clamp or tape until set.",
-    "     Glue the back panel last, on a flat surface, so it squares the shell. Sand the seams flush once cured.",
-  ] : [
-    "  2. Extension rings alternate A, B, A, B behind ring 1 so the lug patterns line up. Inserts always go in the rear lugs.",
-    "  3. Screw each ring to the part in front of it from inside.",
-  ]),
-    "  4. Screw the hub to ring 1 from inside through the four counterbored holes.",
-    "  5. Start one strip end under the bottom cover, lay the strip around the channel, tuck the other end under the cover. Push the leads back through the pocket into the box, then press in the diffuser.",
-    (glue ? "  6. (Back panel is glued in step 3.)" : "  6. Screw the back panel on from outside."),
-    (cfg.fitMode === "hug" ? "  7. Lay the iPad face-up in the tray, plug in, then slide the tray down into the slot face-first so the lip holds the glass. Lift it out by the finger scoop." : "  7. Slide the tablet into the cassette from the top, plug in, drop the top key into the sleeve above it, then slide the cassette down into the slot until its top sits flush."),
-    "  8. Epoxy and pin the ferrules onto the dowels, then thread them into the hub.", "",
-    "Print a test coupon first: one hub socket + one ferrule, and one back-panel thread hole with your accessory screw.");
+  if (cfg.back.mode !== "none" && mt !== "wall") lines.push(`  Back: ${holes.all.filter(isOn).length} ${cfg.back.mode} holes, ${cfg.back.d} mm x ${cfg.back.pitch} pitch on a ${cfg.back.grid} mm grid (an estimate of Thread Boards' 12 mm thread: print the test coupon first)`);
+  lines.push("", "ASSEMBLY (the pictures are in instructions.html)");
+  const A = [];
+  if (nIns) A.push(`Melt the inserts in (${mt === "post" ? "post cap" : "hub"} top${dk ? ", the two under the slot floor for the dock clip" : ""}${glue ? "" : ", frame rear face, rear lugs of every ring"}).`);
+  else if (dk) A.push("Melt the two M3 short inserts into the slot floor for the dock clip.");
+  A.push(glue ? `Dry-fit, then glue the frame onto ${mt === "wall" ? "the wall case" : "ring 1"}. Clamp or tape, check the seam all round.` : "Screw ring 1 to the frame from inside.");
+  if (cfg.led.on) A.push("LED: start each strip under the bottom cover, lay it round the corner and up the side; leads go back through the pocket. Press in the diffuser.");
+  if (dk) A.push("Dock: push the cable's far end down through the passage under the slot into the box. Slide the plug into the clip from the front, zip-tie the cable right under the clip floor, then screw the clip onto the slot floor (reach down from the top).");
+  A.push(mt === "wall" ? "Glue on the wall plate, on a flat table so it squares the case." : glue ? "Glue each ring, then the back panel last on a flat table, one joint at a time." : "Screw on each ring (they alternate A, B), then the back panel.");
+  if (mt === "tripod") A.push("Screw the drum to ring 1 from inside. Epoxy and pin the ferrules onto the dowels, then thread them into the drum.");
+  if (mt === "post") A.push("Screw the post cap to ring 1 from inside. Build the base (see the page's guide), screw on the flange, put the pole in both, snug the thumb screws.");
+  if (mt === "wall") A.push("Drill two level holes, screws 3 mm proud. Hang the case: heads into the round holes, then slide down.");
+  A.push(`Felt on the back of the lip. ${dk ? "iPad face-down in the tray, then slide the cassette down: the plug goes in by itself." : "iPad in the tray, plug in, then slide the cassette down until flush."} Lift it out by the finger scoop.`);
+  A.forEach((t, i) => lines.push(`  ${i + 1}. ${t}`));
+  lines.push("", "BOOTH CODE (paste into the configurator: Export > Restore a booth)", `  ${boothCode || "(see booth-config.json)"}`);
   return lines.join("\n");
 }
 
@@ -777,8 +885,10 @@ $("#exportBtn").addEventListener("click", async () => {
       zip.file(`${pj.name}.3mf`, await z3.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } }));
       projNotes.push(`  ${pj.name}.3mf  ${P.label}, ${pj.beds} bed${pj.beds > 1 ? "s" : ""}: ${B.printer} · ${B.print} · ${B.filament}`);
     }
+    boothCode = await encodeCode(cfg);
     zip.file("README.txt", readme(sizes, projNotes));
-    zip.file("booth-config.json", JSON.stringify(cfg, null, 2));
+    zip.file("booth-config.json", JSON.stringify({ code: boothCode, ...cfg }, null, 2));
+    zip.file("instructions.html", howtoPage(howtoInfo()));
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
     msg.textContent = `Ready: ${(blob.size / 1e6).toFixed(1)} MB. Saving…`;
     await downloads.save({ filename: `cassette-booth-${slug(cfg.tablet.preset)}-${cfg.orientation}.zip`, data: blob });
@@ -788,6 +898,74 @@ $("#exportBtn").addEventListener("click", async () => {
     msg.textContent = e && e.code === "declined" ? "Download cancelled." : `Export failed: ${e.message || e.code || e}`;
   }
   btn.disabled = false;
+});
+
+// ------------------------------------------------------------------ booth code (restore a previous booth)
+// PB1. + base64url(deflate(JSON settings)). The same code is in the README and booth-config.json of every download.
+var boothCode = "";
+const b64u = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0));
+async function pipe(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
+async function encodeCode(c) {
+  const json = new TextEncoder().encode(JSON.stringify(c));
+  try { return "PB1." + b64u(await pipe(json, new CompressionStream("deflate-raw"))); } catch (e) { return "PB0." + b64u(json); }
+}
+async function decodeCode(code) {
+  const m = /^(PB[01])\.([A-Za-z0-9_-]+)$/.exec(String(code).trim());
+  if (!m) throw new Error("That doesn't look like a booth code (they start with PB1.)");
+  const raw = unb64u(m[2]);
+  return JSON.parse(new TextDecoder().decode(m[1] === "PB1" ? await pipe(raw, new DecompressionStream("deflate-raw")) : raw));
+}
+function restore(obj, how) {
+  const { code, ...rest } = obj || {};
+  if (!rest.tablet || !rest.shell) throw new Error("No booth settings in that file.");
+  cfg = merge(clone(DEFAULTS), rest); focus = null; acked.clear(); printChanges = [];
+  changed(0);
+  $("#codeMsg").textContent = `Restored ${how}: ${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation}, ${mountOf(cfg)}.`;
+}
+$("#codeLoad").addEventListener("click", async () => {
+  try { restore(await decodeCode($("#codeIn").value), "from the code"); } catch (e) { $("#codeMsg").textContent = e.message; }
+});
+$("#cfgFile").addEventListener("change", async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const j = JSON.parse(await f.text()); restore(j, `from ${f.name}`); } catch (err) { $("#codeMsg").textContent = err.message || "Couldn't read that file."; }
+  e.target.value = "";
+});
+$("#codeCopy").addEventListener("click", async () => {
+  const code = await encodeCode(cfg);
+  $("#codeIn").value = code;
+  try { await navigator.clipboard.writeText(code); $("#codeMsg").textContent = "Booth code copied. Paste it here any time to bring this booth back."; }
+  catch (e) { $("#codeIn").select(); $("#codeMsg").textContent = "Booth code is in the box above; copy it from there."; }
+});
+// a code in the page address (#cfg=PB1....) loads on open
+(async () => { const m = /[#&]cfg=([^&]+)/.exec(location.hash); if (m) try { restore(await decodeCode(decodeURIComponent(m[1])), "from the link"); } catch (e) {} })();
+
+// ------------------------------------------------------------------ picture instructions
+function howtoInfo() {
+  const d = derive(cfg), mt = mountOf(cfg), ln = legNumbers();
+  const parts = exportList().map(([n, q]) => [partLabel(n), q, bedFor(n) || PART_INFO[n].printer]);
+  const pn = mt === "post" ? postNumbers() : null, w = mt === "wall" ? wallNumbers() : null;
+  return {
+    title: "Booth", subtitle: `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation} · ${mt} · ${cfg.print.nozzle} mm ${cfg.print.material}`,
+    mount: mt, dock: !!d.dock, led: cfg.led.on, nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
+    backHoles: mt !== "wall" && cfg.back.mode !== "none", liner: cfg.cass.liner,
+    legCut: ln ? `${(ln.cut / 25.4).toFixed(1)}″` : "", poleCut: pn ? `${pn.pole} mm` : "", base: pn ? `${pn.B} mm` : "", layers: pn ? pn.layers : 0,
+    keySpan: w ? w.span : 0, keyHeight: w ? `${(w.lockH / 25.4).toFixed(1)}″ up` : "",
+    plug: d.dock ? ((DOCK_PLUGS[cfg.dock.brand] || {}).label || "Plug").split(" ")[0] + " plug" : "", code: boothCode,
+  };
+}
+$("#howtoBtn").addEventListener("click", async () => {
+  boothCode = await encodeCode(cfg);
+  $("#howtoBody").innerHTML = `<style>${HOWTO_CSS}</style><div class="howto-doc"><h1>Booth</h1><p class="hsub">${howtoInfo().subtitle}</p>${howtoBody(howtoInfo())}</div>`;
+  $("#howto").showModal();
+});
+$("#howtoClose").addEventListener("click", () => $("#howto").close());
+$("#howtoSave").addEventListener("click", async () => {
+  const data = new Blob([howtoPage(howtoInfo())], { type: "text/html" });
+  let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
+  if (dl) { try { await dl.save({ filename: "booth-instructions.html", data }); } catch (e) {} return; }
+  const url = URL.createObjectURL(data), a = Object.assign(document.createElement("a"), { href: url, download: "booth-instructions.html" });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
 });
 
 // ------------------------------------------------------------------ go

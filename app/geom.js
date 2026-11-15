@@ -12,10 +12,66 @@ export const DEFAULTS = {
   led: { on: true, w: 6, depth: 5, skin: 3.5, diffT: 1.8, inlet: 36 },
   cap: { lock: "none" },          // "none" = slide-in, no cap; legacy: "screws" | "magnets" | "camlock"
   inserts: { type: "m3", screw: 3, hole: 4.2, len: 5.7 },
-  back: { t: 8, mode: "threaded", d: 8, pitch: 1.25, clr: 0.4, grid: 25, cells: null },
+  back: { t: 8, mode: "threaded", d: 12, pitch: 1.75, clr: 0.4, grid: 25, cells: null },   // Thread Boards estimate: print the test coupon first
   legs: { splay: 18, dowel: 38.1, camHeight: 1524, threadClr: 0.8, blend: false, circle: 26, style: "puck" },   // style: "puck" (current) | "bent" | "cluster" (older)
   print: { nozzle: 0.8, material: "PETG", ironing: false },   // nozzle drives the shell's wall/skin snapping; material only the slicer settings
+  // tripod: drum base + 3 dowel legs; post: one pole into a post cap, wood floor base with a printed flange; wall: shallow case + wall plate
+  mount: { type: "tripod", wallD: 40, pole: "emt125", od: 38.4, hollow: true, base: 600, layers: 2 },
+  // USB-C dock (hugged tray, port on the bottom edge): a fixed plug in a printed clip, so the iPad plugs in as the cassette drops in
+  dock: { on: false, brand: "apple", w: 10.6, t: 5.4, len: 15, cable: 3.8 },
 };
+
+// ---------------------------------------------------------------- mounts
+export const MOUNTS = ["tripod", "post", "wall"];
+export const mountOf = (c) => (MOUNTS.includes(c.mount && c.mount.type) ? c.mount.type : "tripod");
+// poles for the post mount (outside diameters; EMT is US electrical conduit, hollow so the cable runs inside)
+export const POLES = {
+  emt1: { label: "1\u2033 EMT conduit (29.5 mm OD)", od: 29.5, hollow: true },
+  emt125: { label: "1\u00bc\u2033 EMT conduit (38.4 mm OD)", od: 38.4, hollow: true },
+  dowel125: { label: "1\u00bc\u2033 hardwood dowel (31.8 mm)", od: 31.75, hollow: false },
+  closet: { label: "1\u215c\u2033 closet rod (34.9 mm)", od: 34.9, hollow: false },
+  dowel15: { label: "1\u00bd\u2033 hardwood dowel (38.1 mm)", od: 38.1, hollow: false },
+  custom: { label: "Custom" },
+};
+export function poleOf(c) {
+  const m = c.mount || {}, p = POLES[m.pole];
+  return p && m.pole !== "custom" ? { od: p.od, hollow: p.hollow, label: p.label } : { od: +m.od || 38, hollow: !!m.hollow, label: `${(+m.od || 38).toFixed(1)} mm pole` };
+}
+// post cap under ring 1: a disc on the four base screws, a sleeve with a blind bore for the pole, an M5 set screw at the back
+export const POST = { clr: 0.6, wall: 6, disc: 8, ch: 1.5, fillet: 6, minDepth: 60, rib: 7 };
+export function postSpec(c) {
+  const p = poleOf(c), rB = p.od / 2 + POST.clr / 2, rS = rB + POST.wall;
+  const depth = Math.max(POST.minDepth, Math.ceil(p.od * 1.6));
+  return { ...p, rB, rS, depth, R: Math.max(rS + 14, 56), H: POST.disc + depth };
+}
+export const cableX = (c) => (mountOf(c) === "post" && !postSpec(c).hollow ? Math.ceil(postSpec(c).rS + 9) : 0);
+// floor flange that screws to the wood base: disc with four countersunk wood screws and a collar for the pole's foot
+export const FLANGE = { disc: 6, collar: 40, wall: 5, floor: 3, reach: 22 };
+export function flangeSpec(c) {
+  const S = postSpec(c), rC = S.rB + FLANGE.wall;
+  return { rB: S.rB, rC, R: rC + FLANGE.reach, H: FLANGE.disc + FLANGE.collar, screwR: rC + 11, hollow: S.hollow };
+}
+// wood base guide: plywood square, 18 mm (3/4") sheets, ~600 kg/m3
+export const PLY = { t: 18, density: 600 };
+// wall plate keyholes: head enters the round hole, the case drops so the screw rides to the top of the slot
+export const KEY = { head: 10, slot: 4.6, len: 11, lip: 3 };
+
+// ---------------------------------------------------------------- USB-C dock
+// head sizes are typical caliper measurements, not published specs: measure yours and use Custom if it differs
+export const DOCK_PLUGS = {
+  apple: { label: "Apple 60W USB-C Charge Cable (1 m)", w: 10.6, t: 5.4, len: 15, cable: 3.8, url: "https://www.apple.com/shop/product/MW493AM/A/60w-usb-c-charge-cable-1-m" },
+  anker: { label: "Anker USB-C to USB-C Cable (240W, braided)", w: 12.4, t: 6.6, len: 20, cable: 4.0, url: "https://www.anker.com/products/a82e2-240w-usb-c-to-usb-c-cable" },
+  amazon: { label: "Amazon Basics USB-C to USB-C 2.0 Cable", w: 12.0, t: 6.4, len: 19, cable: 3.6, url: "https://www.amazon.com/dp/B01GGKZ1VA" },
+  custom: { label: "Custom (measure your plug)" },
+};
+export function plugOf(c) {
+  const k = c.dock || {}, p = DOCK_PLUGS[k.brand];
+  return p && k.brand !== "custom" ? { w: p.w, t: p.t, len: p.len, cable: p.cable } : { w: +k.w || 12, t: +k.t || 6.5, len: +k.len || 18, cable: +k.cable || 4 };
+}
+// clip: U around the plug head (open at the front, the frame lip closes it), a floor the head sits on with a slot for the
+// cable, and two ears screwed down onto the slot floor (M3 x 8 into M3 x 4 heat-set inserts); a zip tie under the floor stops
+// the plug pulling up when the cassette lifts out
+export const DOCK = { gap: 0.5, floor: 2, wall: 1.6, clr: 0.15, earW: 7, earH: 3, insHole: 4.0, insD: 5.0, head: 2.2 };
 
 // ---------------------------------------------------------------- print plan (nozzle-driven)
 // Walls, ribs and lips of the shell parts (frame, rings, back panel) snap to whole extrusion widths (at least 2) so they print as
@@ -44,7 +100,7 @@ export function printPlan(c) {
 }
 // shallow V-groove (0.4 deep, 90 degrees) down the underside of each tall shell part: a hidden, aligned place for the seam
 export const SEAM_V = 0.4;
-export const SEAM_REAR = new Set(["frame", "ring1", "ringExt", "ringExt2", "ringExtLast"]);
+export const SEAM_REAR = new Set(["frame", "ring1", "ringExt", "ringExt2", "ringExtLast", "wallCase"]);
 
 export const TABLETS = {
   "ipad-a16": { label: "iPad (A16) / 10th gen", w: 248.6, h: 179.5, t: 7.0, r: 18, sw: 227.0, sh: 157.8, camEdge: "long", camOff: 5.4, bump: 26 },
@@ -90,6 +146,12 @@ export const PART_INFO = {
   back: { label: "Back panel", printer: "XL" },
   hub: { label: "Base hub", printer: "Core One" },
   ferrule: { label: "Leg ferrule", printer: "Core One", qty: 3 },
+  wallCase: { label: "Wall case", printer: "XL", note: "Replaces the rings" },
+  wallBack: { label: "Wall plate", printer: "XL", note: "Two keyholes" },
+  postCap: { label: "Post cap", printer: "Core One", note: "M5 insert + thumb screw" },
+  flange: { label: "Floor flange", printer: "Core One", note: "Screws to the wood base" },
+  dockClip: { label: "Dock clip", printer: "Core One", note: "Holds the USB-C plug" },
+  threadTest: { label: "Thread test coupon", printer: "Core One", note: "Print first" },
 };
 
 const SCOOP_W = 60, SCOOP_DEPTH = 14, CAM_LOCK_Z = 30;
@@ -137,7 +199,8 @@ export function derive(c) {
   // of crossing the open top of the slot, so the lip only has to hold the glass
   const P = printPlan(c);
   const chanClr = 0.5, lip = P.lip;
-  let Cw, Ch, cassT, ipadOff = [0, 0], chZ1, cassZ, tabletZ;
+  const dockOn = !!(c.dock && c.dock.on) && hug && portDir(c)[1] < 0;
+  let Cw, Ch, cassT, ipadOff = [0, 0], chZ1, cassZ, tabletZ, dockMB = 0;
   if (hug) {
     // bezel-lock tray: 2 mm walls, extra room on the USB-C edge(s) for a right-angle plug
     const g = c.cass.portGap;
@@ -145,11 +208,12 @@ export function derive(c) {
     // top-left from the back). "both": plug room on both opposite edges. Model -x is the viewer's right.
     const ps = c.cass.portSide === "both" ? "both" : "auto", pd = portDir(c);
     let mL = TRAY_WALL, mR = TRAY_WALL, mT = TRAY_WALL, mB = TRAY_WALL;
-    if (ps === "both") { if (pd[0]) { mL += g; mR += g; } else { mT += g; mB += g; } }
+    if (dockOn) mB = plugOf(c).len + DOCK.floor + DOCK.gap;       // the clip stands on the slot floor under the iPad's edge
+    else if (ps === "both") { if (pd[0]) { mL += g; mR += g; } else { mT += g; mB += g; } }
     else if (pd[0] < 0) mL += g; else if (pd[0] > 0) mR += g; else if (pd[1] > 0) mT += g; else mB += g;
     // LED off: the frame's side wall is whole lines; the tray's outer edge (inside the slot) takes the difference
     if (!c.led.on) { const dx = 4 - P.sideNoLed; mL += dx; mR += dx; }
-    Cw = pw + mL + mR; Ch = ph + mT + mB;
+    Cw = pw + mL + mR; Ch = ph + mT + mB; dockMB = mB;
     ipadOff = [(mL - mR) / 2, (mB - mT) / 2];
     cassT = c.cass.back + tb.t - 0.3;                                 // tablet glass stands 0.3 mm proud of the tray rim
     tabletZ = lip + c.cass.liner;                                      // glass face sits against the lip (+ felt liner)
@@ -165,7 +229,10 @@ export function derive(c) {
   if (hug) {
     const side = c.led.on ? 2.5 + c.led.w + c.led.skin : P.sideNoLed;
     // top/bottom must leave room for the finger scoop above the cassette when there's no cap
-    const sideY = (c.cap.lock || "none") === "none" ? Math.max(side, DISH.depth + 2.5) : side;
+    let sideY = (c.cap.lock || "none") === "none" ? Math.max(side, DISH.depth + 2.5) : side;
+    // dock: the clip's inserts need solid wall under the slot floor, above the LED wire pocket
+    if (dockOn && c.led.on) { const sk = P.ledSkin, gn = side - c.led.w - sk, gp = gn / P.ew > 8 ? gn : r3(P.n(gn, "floor") * P.ew);
+      sideY = Math.max(sideY, Math.ceil((side - gp) + DOCK.insD + 0.6)); }
     Sx = chW / 2 + side; Sy = chH / 2 + sideY;
   } else { Sx = (Cw + 36) / 2; Sy = (Ch + 36) / 2; }
   const Sw = 2 * Sx, Sh = 2 * Sy;
@@ -249,7 +316,19 @@ export function derive(c) {
     fd, glue, lip, capless, yS, rCass, rSlot, land, hug, pw, ph, iw, ih, Cw, Ch, cassT, cassZ, tabletZ, ipadOff, Sw, Sh, Sx, Sy, R, innerX, innerY, offX, A, B,
     chanClr, chW, chH, chZ1, winW, winH, winR, winC, cam, camShell: [cam[0], cam[1] - chanClr], bezel,
     thrMajor: legThread(c), thrPitch: 4, seat: 30, tabLen, ...mainShell(c, fd, glue ? chZ1 - 0.05 - fd : 0),
-    seamX: (() => { const flat = Sx - R, drum = puckSpec(c).R; return drum + 6 <= flat - 3 ? drum + 6 : 0; })(),
+    seamX: (() => { if (mountOf(c) === "wall") return 0; const flat = Sx - R, drum = baseR(c); return drum + 6 <= flat - 3 ? drum + 6 : 0; })(),
+    mount: mountOf(c), post: postSpec(c), flange: flangeSpec(c),
+    keyholes: (() => { const kx = Math.max(30, Math.floor(Math.min(80, Sx - P.wall - 25) / 5) * 5), yL = Math.round(Sy - P.wall - 22);
+      return [[-kx, yL - KEY.len], [kx, yL - KEY.len]]; })(),
+    keyLockY: Math.round(Sy - P.wall - 22), wallHoleY: -(Sy - P.wall - 30),
+    ...(() => { const end = cassZ + cassT + 0.01 + DISH.len + P.cradle + 1;   // wall case: the finger dish and its cradle fit inside
+      const min = Math.max(30, Math.ceil((end - fd + 2) / 5) * 5); return { wallDmin: min, wallD: Math.max(min, +(c.mount && c.mount.wallD) || 40) }; })(),
+    dock: dockOn ? (() => {
+      const p = plugOf(c), yS = -chH / 2, yFace = yS + dockMB - DOCK.gap, yFloor = yFace - p.len, yBot = yFloor - DOCK.floor;
+      const zP = tabletZ + tb.t / 2, zBootF = zP - p.t / 2, zF = Math.max(lip + 0.25, zBootF - DOCK.clr);
+      const zB = zP + p.t / 2 + DOCK.clr + DOCK.wall, halfW = p.w / 2 + DOCK.clr + DOCK.wall;
+      return { ...p, x: ipadOff[0], yS, yFace, yFloor, yBot, zP, zBootF, zF, zB, halfW, earX: halfW + DOCK.earW / 2, earZ: (zF + zB) / 2 };
+    })() : null,
     plan: P, wall: P.wall, lapT: P.lapT, lapA: P.lapA, backT: P.backT, cradle: P.cradle, ledDepth: P.ledDepth, ledSkin, ledW, ledGap,
     led: (() => {
       // U from shoulder to shoulder; two strips start under the bottom inlet cover and run up each side
@@ -290,8 +369,9 @@ function puckSpec(c) {
   const H = Math.ceil(L * co + tr * s + PUCK.top);
   return { R, H, rb, cb, rcb, tr };
 }
+const baseR = (c) => (mountOf(c) === "post" ? postSpec(c).R : puckSpec(c).R);
 function mainShell(c, fd, ring1Front) {
-  const P = puckSpec(c), edge = 8;
+  const P = { ...puckSpec(c), R: baseR(c) }, edge = 8;
   const tail = (c.shell.nExt || 0) * c.shell.ringD + printPlan(c).backT;
   const D1min = Math.max(40, Math.ceil(Math.max(P.R + edge + 12 - fd, 2 * (P.R + edge) - fd - tail) / 5) * 5);
   const D1 = Math.max(c.shell.ring1D || c.shell.ringD, D1min);
@@ -363,6 +443,32 @@ export function validate(c) {
   if (d.notch.want > d.notch.maxH + 0.5)
     add("warn", `The camera sits close to the glass edge; its notch is limited to ${d.notch.maxH.toFixed(1)} mm so the iPad's metal edge stays hidden. Check the lens isn't clipped.`);
   if (c.cap.lock === "camlock" && d.D1 < 50) add("error", "The key lock needs ring 1 to be at least 50 mm deep.", fx("Set main shell to 50 mm", ["shell.ring1D", Math.max(50, d.D1min)]));
+  // mounts
+  const mt = mountOf(c);
+  if (mt === "wall") {
+    if (c.shell.join === "screws") add("error", "The wall case glues to the front frame. Switch the shell joints to glued.", fx("Use glued joints", ["shell.join", "glue"]));
+    if ((+c.mount.wallD || 0) < d.wallDmin) add("warn", `The wall case is ${d.wallD} mm deep (its minimum) so the finger scoop fits inside.`, fx(`Set case depth to ${d.wallDmin} mm`, ["mount.wallD", d.wallDmin]));
+    if (d.backT < KEY.lip + 4) add("error", `The wall plate must be at least ${KEY.lip + 4} mm thick for the keyhole pockets.`, fx(`Set the plate to 8 mm`, ["back.t", 8]));
+  }
+  if (mt === "post") {
+    const p = poleOf(c);
+    if (!(p.od >= 19 && p.od <= 51)) add("error", "Pole diameter must be between 19 and 51 mm.", fx("Use 1\u00bc\u2033 EMT conduit", ["mount.pole", "emt125"]));
+  }
+  // dock: the plug points up, so the port must be on the tray's bottom edge
+  if (c.dock && c.dock.on) {
+    if (!d.hug) add("error", "The USB-C dock needs the hugged tray.", fx("Hug this tablet", ["fitMode", "hug"]));
+    else if (portDir(c)[1] >= 0) {
+      const fix = ["left", "right"].map((s) => ({ ...c, orientation: "portrait", camSide: s })).find((c2) => portDir(c2)[1] < 0);
+      add("error", d.land ? "Docking needs the USB-C port on the bottom edge, which on this iPad means portrait. In landscape, plug the cable in before you slide the cassette down, or switch to portrait."
+        : "With the camera on this side the USB-C port is at the top. Put the camera on the other side so the port faces down onto the plug.",
+        fix ? fx(d.land ? "Switch to portrait" : `Camera on the ${fix.camSide}`, ["orientation", "portrait"], ["camSide", fix.camSide]) : fx("Turn the dock off", ["dock.on", false]));
+    } else if (d.dock) {
+      const k = d.dock, chZ1 = d.chZ1;
+      if (k.zB > chZ1 - 0.25) add("error", `A ${k.t} mm thick plug head is too thick for this iPad's slot. Use a slimmer cable or check the size.`, fx("Use the Apple cable", ["dock.brand", "apple"]));
+      if (k.zBootF - 0.25 < 1.2 + 0.01) add("error", "The plug head is too thick to clear the front lip.", fx("Use the Apple cable", ["dock.brand", "apple"]));
+      if ((c.dock.brand || "") === "custom" && !(k.w > 5 && k.t > 2 && k.len > 6 && k.cable > 2)) add("error", "Enter your plug head's width, thickness and length, and the cable diameter.", fx("Use the Apple cable", ["dock.brand", "apple"]));
+    }
+  }
   if (c.cap.lock === "camlock" && c.shell.nExt === 0) add("warn", "With no extension rings the cam lock body sits close to the back panel. Check clearance for your lock.", fx("Add an extension ring", ["shell.nExt", 1]));
   return issues;
 }
@@ -508,6 +614,11 @@ export function makeEngine(wasm) {
     if (land) {
       if (Cw / 2 - 2 - (ox + pw / 2) > 1) cuts.push(box(ox + pw / 2 - 0.01, Cw / 2 - 2, -14, 14, -1, t + 1));
       if ((ox - pw / 2) + Cw / 2 - 2 > 1) cuts.push(box(-(Cw / 2 - 2), ox - pw / 2 + 0.01, -14, 14, -1, t + 1));
+    } else if (d.dock) {
+      // the dock clip passes up through the bottom: narrow where the plug head is, wider low down for the ears and screw heads
+      const k = d.dock, hw = k.halfW + 0.5, ew = k.halfW + DOCK.earW + 0.5;
+      cuts.push(box(k.x - hw, k.x + hw, -Ch / 2 - 1, oy - ph / 2 + 0.01, -1, t + 1));
+      cuts.push(box(k.x - ew, k.x + ew, -Ch / 2 - 1, -Ch / 2 + DOCK.earH + DOCK.head + 0.6, -1, t + 1));
     } else cuts.push(box(-14, 14, -(Ch / 2 - 2), oy - ph / 2 + 0.01, -1, t + 1));
     if (d.capless) return sub(body, U(cuts), dishLocalCassette(d));
     cuts.push(inter(cylY(0, t / 2, Ch / 2 - 9, Ch / 2 + 1, 34), box(-24, 24, Ch / 2 - 11, Ch / 2 + 2, zb - 0.01, t + 1)));
@@ -579,7 +690,41 @@ export function makeEngine(wasm) {
       : sub(lapTongue(d, c, chZ1 - 0.05), box(-chW / 2 - 0.5, chW / 2 + 0.5, 0, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1));
     // the tongue stops either side of the LED wire pocket instead of bridging over it
     const L = c.led.inlet;
-    return add(bezel, c.led.on ? sub(tongue, box(-L / 2 + 0.5, L / 2 - 0.5, -Sy - 1, -(Sy - d.ledSkin - d.ledW) + 0.5, chZ1 - 1, chZ1 + LAP.len + 1)) : tongue);
+    let tg = c.led.on ? sub(tongue, box(-L / 2 + 0.5, L / 2 - 0.5, -Sy - 1, -(Sy - d.ledSkin - d.ledW) + 0.5, chZ1 - 1, chZ1 + LAP.len + 1)) : tongue;
+    if (d.dock) tg = sub(tg, box(d.dock.x - d.dock.w / 2 - 1.1, d.dock.x + d.dock.w / 2 + 1.1, -Sy - 1, d.dock.yS, chZ1 - 1, chZ1 + LAP.len + 1));
+    return add(bezel, tg);
+  }
+  // dock: a passage under the slot floor for the cable (wide enough for the far plug to pass), heat-set insert holes for the
+  // clip's ears, and a relief in the back of the lip if the plug head stands proud of the glass
+  function dockCuts(c, d) {
+    const k = d.dock, out = [], pw = k.w / 2 + 0.6;
+    const floor = c.led.on ? -(d.Sy - d.ledSkin) : -d.innerY;
+    const zPf = Math.max(1.2, Math.min(k.zF, k.zBootF) - 0.3);
+    out.push(box(k.x - pw, k.x + pw, floor, k.yS + 0.01, zPf, d.fd + 1));
+    for (const sx of [-1, 1]) {
+      const x = k.x + sx * k.earX;
+      out.push(cylY(x, k.earZ, k.yS - DOCK.insD, k.yS + 0.01, DOCK.insHole));
+      out.push(inter(teardropY(x, k.earZ, k.yS - DOCK.insD, k.yS + 0.01, DOCK.insHole), box(x - 5, x + 5, k.yS - DOCK.insD - 1, k.yS + 1, k.earZ, k.earZ + 5)));
+    }
+    if (k.zBootF - 0.25 < d.lip) out.push(box(k.x - k.w / 2 - 0.6, k.x + k.w / 2 + 0.6, k.yS - 0.01, k.yFace + 0.6, Math.max(1.2, k.zBootF - 0.25), d.lip + 0.01));
+    return out;
+  }
+  function dockClip(c) {
+    const d = derive(c), k = d.dock;
+    if (!k) return box(0, 0.01, 0, 0.01, 0, 0.01);
+    const x0 = k.x, hw = k.halfW, ew = DOCK.earW;
+    const body = add(box(x0 - hw, x0 + hw, k.yBot, k.yFace, k.zF, k.zB), box(x0 - hw - ew, x0 + hw + ew, k.yBot, k.yBot + DOCK.earH, k.zF, k.zB));
+    const cuts = [
+      box(x0 - k.w / 2 - DOCK.clr, x0 + k.w / 2 + DOCK.clr, k.yFloor, k.yFace + 1, k.zF - 1, k.zP + k.t / 2 + DOCK.clr),     // plug head, open at the front
+      box(x0 - k.cable / 2 - 0.25, x0 + k.cable / 2 + 0.25, k.yBot - 1, k.yFloor + 0.01, k.zF - 1, k.zP + k.cable / 2 + 0.25),  // cable slot, open at the front
+    ];
+    // screw holes; the clip prints back-down, so each gets a point toward the front (print up)
+    for (const sx of [-1, 1]) {
+      const x = x0 + sx * k.earX;
+      cuts.push(cylY(x, k.earZ, k.yBot - 1, k.yBot + DOCK.earH + 1, 3.4));
+      cuts.push(inter(teardropY(x, k.earZ, k.yBot - 1, k.yBot + DOCK.earH + 1, 3.4), box(x - 3, x + 3, k.yBot - 2, k.yBot + DOCK.earH + 2, k.earZ - 3, k.earZ)));
+    }
+    return sub(body, U(cuts));
   }
   function stopBand(c) {
     const d = derive(c), BIG = 2000;
@@ -613,6 +758,7 @@ export function makeEngine(wasm) {
       cuts.push(box(-12, 12, yInner - 0.01, -chH / 2 + 0.01, chZ1, fd + 1));    // joins the bottom wiring notch
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
+    if (d.dock) cuts.push(...dockCuts(c, d));
     cuts.push(seamGroove(d, -1, fd + 1));
     const I = insertSpec(c);
     if (!d.glue) for (const [x, y] of d.A) cuts.push(cylZ(x, y, fd - I.depth, fd + 1, I.hole));
@@ -697,7 +843,8 @@ export function makeEngine(wasm) {
         cuts.push(cylY(x, z, -Sy - 1, -innerY + 10, I.clr));
         cuts.push(cylY(x, z, -innerY + 9 - I.head_h, -innerY + 10, I.head + 0.2));
       }
-      cuts.push(cylY(0, d.hubZc, -Sy - 1, -innerY + 10, PUCK.cable + 1), teardropY(0, d.hubZc, -Sy - 1, -innerY + 10, PUCK.cable + 1));
+      const cx = cableX(c);
+      cuts.push(cylY(cx, d.hubZc, -Sy - 1, -innerY + 10, PUCK.cable + 1), teardropY(cx, d.hubZc, -Sy - 1, -innerY + 10, PUCK.cable + 1));
     } else if (first) {
       const FX = [-TAB.fx, TAB.fx];
       adds.push(box(-TAB.x1 - 3, TAB.x1 + 3, innerY - 9, innerY + 0.1, 0, 20));
@@ -725,6 +872,83 @@ export function makeEngine(wasm) {
     }
     body = add(body, U(adds));
     cuts.push(seamGroove(d, (d.glue && first ? d.chZ1 - 0.05 - d.fd : 0) - 1, D + LAP.len + 1));
+    return sub(body, U(cuts));
+  }
+
+  // ------------------------------------------------------------ wall mount
+  // wall case: ring 1's front (cassette stop, socket for the frame's tongue, finger dish and cradle), cut short, with a cable
+  // notch in the bottom wall at the back. The wall plate glues onto its tongue like the back panel.
+  function wallCase(c) {
+    const d = derive(c), D = d.wallD, { Sy, innerX, innerY } = d;
+    let body = sub(shellProfile(d, 0, D), rr(2 * innerX, 2 * innerY, d.R - d.wall, -1, D + 1));
+    const front = d.chZ1 - 0.05 - d.fd, adds = [lapTongue(d, c, D), stopBand(c)], cuts = [lapSocket(d, c, front)];
+    if (d.capless) {
+      adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 4, DISH.hw + 4, innerY - 30, innerY + 0.5, front + 0.05 + 0.01, D - 0.01)));
+      cuts.push(mv(dish(d), 0, 0, -d.fd));
+    }
+    cuts.push(box(-8, 8, -Sy - 1, -innerY + 1, D - 12, D + LAP.len + 1));     // cable out of the bottom, close to the wall
+    body = add(body, U(adds));
+    cuts.push(seamGroove(d, front - 1, D + LAP.len + 1));
+    return sub(body, U(cuts));
+  }
+  // wall plate: the back panel's groove, no threads, two keyholes (head pocket from the inside, KEY.lip left at the wall face)
+  // and a hole for a cable coming out of the wall
+  function wallBack(c) {
+    const d = derive(c), t = d.backT;
+    const body = sub(shellProfile(d, 0, t), band(d, c, d.lapA - LAP.clr, d.lapA + d.lapT + LAP.clr, -1, LAP.depth));
+    const cuts = [cylZ(0, d.wallHoleY, -1, t + 1, 22)];
+    for (const [x, y] of d.keyholes) {
+      cuts.push(cylZ(x, y, -1, t + 1, KEY.head));
+      cuts.push(box(x - KEY.slot / 2, x + KEY.slot / 2, y, y + KEY.len, -1, t + 1), cylZ(x, y + KEY.len, -1, t + 1, KEY.slot));
+      cuts.push(box(x - KEY.head / 2, x + KEY.head / 2, y, y + KEY.len, -1, t - KEY.lip), cylZ(x, y + KEY.len, -1, t - KEY.lip, KEY.head));
+    }
+    return sub(body, U(cuts));
+  }
+  // thread test coupon: one back-panel hole in a small plate, to check against your Thread Boards screws before the full panel
+  function threadTest(c, pv) {
+    const t = derive(c).backT, b = c.back, w = Math.max(30, b.d + 16);
+    const hole = b.mode === "threaded" && !pv ? T(thread(b.d, b.pitch, t + 2, b.clr).translate([0, 0, -1])) : cylZ(0, 0, -1, t + 1, b.d + b.clr * 2);
+    return sub(rr(w, w, 4, 0, t), hole, box(w / 2 - 4, w / 2 + 1, -2, 2, t - 1, t + 1));
+  }
+
+  // ------------------------------------------------------------ post mount
+  // the cable hole in ring 1 and the post cap: centred for a hollow pole (cable runs inside it), beside the sleeve for a solid one
+  // post cap: disc on the base screws, sleeve with a blind bore (pole stops against the disc), rib with an M5 insert for the
+  // thumb screw at the back. Prints top-down: disc on the bed, sleeve and rib straight up.
+  function postCap(c) {
+    const d = derive(c), S = d.post, yT = -d.Sy - 0.05, zc = d.hubZc, ch = POST.ch, seg = 128;
+    const cyl = (y0, y1, r0, r1) => T(T(T(Manifold.cylinder(y1 - y0, r0, r1, seg)).rotate([-90, 0, 0])).translate([0, y0, zc]));
+    const yD = yT - POST.disc, yB = yD - S.depth, F = POST.fillet;
+    const body = U([cyl(yD, yT - ch, S.R, S.R), cyl(yT - ch, yT, S.R, S.R - ch), cyl(yB, yB + ch, S.rS - ch, S.rS), cyl(yB + ch - 0.01, yD + 0.01, S.rS, S.rS),
+      cyl(yD - F, yD + 0.01, S.rS, S.rS + F), box(-POST.rib, POST.rib, yB, yD + 0.01, zc + S.rS - 2, zc + S.rS + POST.rib)]);
+    const ys = yB + 15, zo = zc + S.rS + POST.rib;
+    const cuts = [cyl(yB - 1, yD, S.rB, S.rB), cyl(yB - 1, yB + 1.2, S.rB + 1.2, S.rB),
+      T(T(Manifold.cylinder(10.5, 3.2, 3.2, 32)).translate([0, ys, zo - 10.5 + 0.01])),             // M5 insert, 9.5 mm
+      T(T(Manifold.cylinder(zo - zc, 2.75, 2.75, 32)).translate([0, ys, zc])),                         // screw clearance to the bore
+      inter(T(T(T(Manifold.cube([6.4, 6.4, zo - zc + 1], true)).rotate([0, 0, 45])).translate([0, ys, (zc + zo) / 2])), box(-5, 5, ys - 5, ys, zc, zo + 1))];   // print-up point (world -y)
+    const I = insertSpec(c);
+    for (const [x, z] of d.baseScrews) cuts.push(cylY(x, z, yT - I.depth, yT + 1, I.hole));
+    cuts.push(cylY(cableX(c), zc, (S.hollow ? yD : yB) - 1, yT + 1, PUCK.cable));
+    return sub(body, U(cuts));
+  }
+  // floor flange (local: y = 0 on the wood base): disc with four countersunk #8 / 4 mm wood screws, collar for the pole's foot,
+  // M5 thumb screw at the back; a hollow pole's cable drops through the centre and out of a channel under the disc
+  function flange(c) {
+    const S = flangeSpec(c), ch = 1.2, seg = 128, yTop = FLANGE.disc + FLANGE.collar;
+    const cyl = (y0, y1, r0, r1) => T(T(T(Manifold.cylinder(y1 - y0, r0, r1, seg)).rotate([-90, 0, 0])).translate([0, y0, 0]));
+    const body = U([cyl(0, FLANGE.disc - ch, S.R, S.R), cyl(FLANGE.disc - ch - 0.01, FLANGE.disc, S.R, S.R - ch), cyl(0, yTop - ch, S.rC, S.rC), cyl(yTop - ch - 0.01, yTop, S.rC, S.rC - ch),
+      cyl(FLANGE.disc - 0.01, FLANGE.disc + 5, S.rC + 5, S.rC), box(-POST.rib, POST.rib, 0, yTop - 6, S.rC - 2, S.rC + POST.rib)]);
+    const ys = yTop - 14, zo = S.rC + POST.rib;
+    const cuts = [cyl(FLANGE.floor, yTop + 1, S.rB, S.rB), cyl(yTop - 1.2, yTop + 0.01, S.rB, S.rB + 1.2),
+      T(T(Manifold.cylinder(10.5, 3.2, 3.2, 32)).translate([0, ys, zo - 10.5 + 0.01])),
+      T(T(Manifold.cylinder(zo, 2.75, 2.75, 32)).translate([0, ys, 0])),
+      inter(T(T(T(Manifold.cube([6.4, 6.4, zo + 1], true)).rotate([0, 0, 45])).translate([0, ys, zo / 2])), box(-5, 5, ys, ys + 5, 0, zo + 1))];   // print-up point (+y)
+    for (const a of [45, 135, 225, 315]) {
+      const x = S.screwR * Math.cos((a * Math.PI) / 180), z = S.screwR * Math.sin((a * Math.PI) / 180);
+      cuts.push(T(T(T(Manifold.cylinder(FLANGE.disc + 2, 2.4, 2.4, 32)).rotate([-90, 0, 0])).translate([x, -1, z])));
+      cuts.push(T(T(T(Manifold.cylinder(2.6, 2.4, 5, 32)).rotate([-90, 0, 0])).translate([x, FLANGE.disc - 2.6 + 0.01, z])));   // 90-degree countersink
+    }
+    if (S.hollow) cuts.push(cyl(-1, FLANGE.floor + 1, 6, 6), box(-5, 5, -1, 5, 0, S.R + 1));   // cable out under the disc, toward the back
     return sub(body, U(cuts));
   }
 
@@ -948,7 +1172,7 @@ export function makeEngine(wasm) {
   }
 
   const BUILDERS = {
-    cassette, cassKey, frame, cap, diffuser, back, hub, ferrule,
+    cassette, cassKey, frame, cap, diffuser, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
     ring1: (c) => ring(c, true),
     ringExt: (c) => ring(c, false, c.shell.join === "screws"),
     ringExt2: (c) => ring(c, false, false),
@@ -956,9 +1180,9 @@ export function makeEngine(wasm) {
   };
   // every derived dimension that shapes a part; parts rebuild whenever any of these change
   const dims = (c) => { const d = derive(c); return [d.Cw, d.Ch, d.Sw, d.Sh, d.R, d.fd, d.lip, d.chZ1, d.cassZ, d.cassT, d.capless, d.glue, d.D1,
-    d.wall, d.lapT, d.lapA, d.backT, d.cradle, d.ledDepth, d.ledSkin, d.ledW, d.seamX]; };
+    d.wall, d.lapT, d.lapA, d.backT, d.cradle, d.ledDepth, d.ledSkin, d.ledW, d.seamX, d.mount, d.wallD, d.dock, d.hubZc, cableX(c)]; };
   const KEYS = {
-    cassette: (c) => [c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).Cw, derive(c).lip],
+    cassette: (c) => [c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).Cw, derive(c).lip, derive(c).dock, derive(c).Ch],
     cassKey: (c) => [c.tablet, c.orientation, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).lip],
     frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode === "hug" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
     cap: (c) => [dims(c), c.fitMode, c.cass, c.tablet.t, c.shell, c.cap, c.inserts],
@@ -970,11 +1194,17 @@ export function makeEngine(wasm) {
     back: (c) => [dims(c), c.shell, c.back, c.inserts],
     hub: (c) => [dims(c), c.shell, c.legs, c.inserts, derive(c).backT, derive(c).fd],
     ferrule: (c) => [c.legs.dowel, c.legs.threadClr],
+    wallCase: (c) => [dims(c), c.shell, c.led, c.cass, c.fitMode, c.tablet, c.orientation, c.camSide, c.fit, c.dock],
+    wallBack: (c) => [dims(c), c.shell],
+    postCap: (c) => [dims(c), derive(c).post, c.inserts],
+    flange: (c) => [flangeSpec(c)],
+    dockClip: (c) => [derive(c).dock, derive(c).lip],
+    threadTest: (c) => [c.back, derive(c).backT],
   };
   // the cassette prints back-down: its back ledge is then on the bed and the pocket opens upward
   // (hug tray only; the universal cassette prints face-down so the visible mask gets the bed finish, with supports under its back ledge)
   const printRot = (name, c) => (name === "cassette" && c.fitMode === "hug" ? [180, 0, 0] : SEAM_REAR.has(name) ? [0, 0, 180] : PRINT_ROT[name]);
-  const PRINT_ROT = { cap: [-90, 0, 0], back: [180, 0, 0], hub: [-90, 0, 0] };
+  const PRINT_ROT = { cap: [-90, 0, 0], back: [180, 0, 0], hub: [-90, 0, 0], wallBack: [180, 0, 0], postCap: [-90, 0, 0], flange: [90, 0, 0], dockClip: [180, 0, 0] };
   // frame and rings print with the booth's underside (and its seam groove) toward the back of the bed, where seam "Rear" puts it
 
   function toMesh(m) {
@@ -1065,13 +1295,19 @@ export function assembly(c) {
     { part: "ring1", pos: [0, 0, fd] },
   ];
   if (c.led.on) items.push({ part: "diffuser", pos: [0, 0, 0] });
+  if (d.dock) items.push({ part: "dockClip", pos: [0, 0, 0] });
+  if (d.mount === "wall") {
+    items.splice(items.findIndex((i) => i.part === "ring1"), 1);
+    items.push({ part: "wallCase", pos: [0, 0, fd] }, { part: "wallBack", pos: [0, 0, fd + d.wallD] });
+    return { items, headDepth: fd + d.wallD + d.backT };
+  }
   let z = fd + D1;
   for (let i = 0; i < c.shell.nExt; i++) {
     const part = d.glue || i % 2 === 0 ? "ringExt" : "ringExt2";
     items.push({ part, pos: [0, 0, z] }); z += D;
   }
   items.push({ part: "back", pos: [0, 0, z] });
-  items.push({ part: "hub", pos: [0, 0, fd] });
+  items.push({ part: d.mount === "post" ? "postCap" : "hub", pos: [0, 0, fd] });
   return { items, headDepth: z + d.backT };
 }
 
