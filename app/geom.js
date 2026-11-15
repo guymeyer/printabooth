@@ -47,10 +47,11 @@ export function postSpec(c) {
   const depth = Math.max(POST.minDepth, Math.ceil(p.od * 1.6));
   return { ...p, rB, rS, depth, R: Math.max(rS + 14, 56), H: POST.disc + depth };
 }
-// the top of each side of the LED channel: an unlit end bay under a small cover, flush with the face and in the shell's color.
-// The strip runs on under it by `tuck` (its cut end, solder pads and lead hide there) and stops; the rest of the bay is room for
-// the lead to turn back into the box (feed side) or just empty. The bay is also dug `deeper` below the channel floor.
-export const LED_END = { len: 22, tuck: 8, clr: 0.15, deeper: 3, tongueH: 3 };
+// the top of each side of the LED channel: an unlit end bay, a tunnel under the frame's own face (no separate cover, no seam).
+// The strip slides `tuck` into it (its cut end, solder pads and lead hide there) and stops; the rest of the bay is room for
+// the lead to turn back into the box through the feed slot (feed side) or just empty. The bay is also dug `deeper` below
+// the channel floor, and the face over it is `face` thick (rounded up to whole layers).
+export const LED_END = { len: 22, tuck: 8, clr: 0.15, deeper: 3, face: 1.6 };
 // where the LED feed slot can run behind the channel (|x|): two lines of wall to the cassette slot and to ring 1's glue socket
 // (plus its 0.4 mm mouth relief)
 export function feedRoom(d) {
@@ -83,7 +84,7 @@ export const LED_STRIPS = {
     power: "A 12 V addressable controller and a 12 V supply (some wiring).", usb: false,
     url: "https://btf-lighting.com/products/12v-ws2812b-s-shape-foldable-led-strip-light-for-diy-1m-60leds-6mm-pcb-individually-addressable-dream-color-5050-rgb-pixels-tap" },
   topxcdz: { label: "TOPXCDZ 5 mm S-shape WS2812B, 5 V RGB (USB, no soldering)", kind: "Addressable RGB", volts: 5, w: 5, h: 2, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 12,
-    power: "A USB controller for WS2812B strips with a 3-pin JST-SM plug: it plugs into the strip's own connector and any USB charger. Keep that connector end; cut the far end.", usb: true,
+    power: "A USB controller for WS2812B strips with a 3-pin JST-SM plug, into any USB charger. Keep the strip's connector end and cut the far end. Its plug is too big to pass into the box, so cut the lead, thread the wires through and rejoin them with three lever connectors (no soldering).", usb: true,
     url: "https://www.amazon.com/dp/B09WQW1CPR" },
   adafruit: { label: "Adafruit NeoPixel Side Light, 60 LED (on edge), 5 V", kind: "Addressable RGB", volts: 5, edge: true, w: 3, h: 8, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 10,
     power: "A 5 V NeoPixel controller or microcontroller; solder a lead to the strip's start.", usb: false,
@@ -184,7 +185,6 @@ export const PART_INFO = {
   cassette: { label: "Cassette", printer: "XL" },
   frame: { label: "Front frame", printer: "XL" },
   diffuser: { label: "LED diffuser", printer: "XL", note: "Translucent PETG" },
-  ledCap: { label: "LED end cover", printer: "Core One", note: "Shell color; hides the strip's ends" },
   cap: { label: "Top cap", printer: "XL" },
   cassKey: { label: "Cassette top key", printer: "Core One", note: "Drops in after the iPad" },
   ring1: { label: "Ring 1", printer: "XL", note: "Includes the cassette stop" },
@@ -398,7 +398,7 @@ export function derive(c) {
       const feedX = (c.led.feed === "right" ? -1 : 1) * (Sx - ledSkin - ledW / 2);   // viewer's left is +x
       return { perimeter: U, strip, cutLen, segs: S ? Math.round(cutLen / S.cut) : 0, leds: S ? Math.round((cutLen / 1000) * S.perM) : 0,
         strips: 1, lit: U - 2 * LED_END.len, yEnd, yLit, yStrip, ro, lc, feedX, reel: Math.ceil(strip / 1000 - 1e-6),
-        bayZ: Math.max(P.ledDepth, Math.min(P.ledDepth + LED_END.deeper, chZ1 - 0.05 - 2 * P.ew)) };
+        bayZ: Math.max(P.ledDepth, Math.min(P.ledDepth + LED_END.deeper, chZ1 - 0.05 - 2 * P.ew)), faceT: P.L(LED_END.face) };
     })(),
   };
 }
@@ -825,9 +825,9 @@ export function makeEngine(wasm) {
     // the shell's slot walls stop at the shoulders; the cassette's band sits on them (the lip in front stays whole)
     if (d.capless) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
     if (c.led.on) {
-      // one unbroken channel (and diffuser recess) from shoulder to shoulder, plus the feed slot at the top of one side
-      cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), ledFeed(c, d));
-      if (d.led.bayZ > d.ledDepth + 0.2) cuts.push(...ledBays(c, d));
+      // one unbroken channel (and diffuser recess) round the U up to the end bays, the bays as tunnels under the face, and the
+      // feed slot from the feed side's bay back into the box
+      cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0, LED_END.len), ledRing(c, -1, c.led.diffT, 1.0, LED_END.len)])), ...ledBays(c, d), ledFeed(c, d));
       // the channel's floor is bridged (the frame prints face down). Bridged as one U it gets one bridge direction, so one run
       // would be bridged lengthwise and sag. The bottom run's floor goes one layer deeper: each side (with its corner) and the
       // bottom are then bridged on different layers, each straight across the channel.
@@ -873,29 +873,15 @@ export function makeEngine(wasm) {
     return sub(m, U(cuts));
   }
 
-  // one piece, from the bottom of one end bay round to the other
+  // one piece, from the mouth of one end bay round to the other
   function diffuser(c) {
     return ledRing(c, 0, c.led.diffT, 0.7, LED_END.len + LED_END.clr);
   }
-  // the end bays: the channel's last LED_END.len at the top of each side, dug deeper (never through the frame's back)
+  // the end bays: the channel's last LED_END.len at the top of each side, closed in front by the face, dug deeper behind
+  // (never through the frame's back). Printed face down they're tunnels whose only roof is a short straight bridge.
   function ledBays(c, d) {
-    const ox = d.Sx - d.ledSkin, ix = ox - d.ledW;
-    return [1, -1].map((s) => box(Math.min(s * ix, s * ox), Math.max(s * ix, s * ox), d.led.yLit, d.led.yEnd, d.ledDepth - 0.01, d.led.bayZ));
-  }
-  // the end bay geometry the cover is built around (+x side, frame coordinates), and where it sits
-  function ledCapSpec(c) {
-    const d = derive(c), ox = d.Sx - d.ledSkin, ix = ox - d.ledW, k = LED_END.clr;
-    const { hi } = feedRoom(d), tw = Math.min(Math.max(1.2, 2 * d.plan.ew), ox - k - (hi + 0.3));   // tongue stays clear of the feed slot
-    return { d, ox, ix, k, tw, xc: (ix + ox) / 2, yc: (d.led.yLit + d.led.yEnd) / 2 };
-  }
-  // end cover: fills the diffuser recess over the end bay, flush with the face, with a press-fit tongue down the bay's outer
-  // wall where the strip has stopped (it never presses on the strip or the lead). Built about its own centre; the right-hand
-  // one is the same part turned round.
-  function ledCap(c) {
-    const { d, ox, ix, k, tw, xc, yc } = ledCapSpec(c), e = 1.0 - k;
-    let m = box(ix - e, ox + e, d.led.yLit + k, d.led.yEnd - k, 0, c.led.diffT);
-    if (tw >= 0.9) m = add(m, box(ox - k - tw, ox - k, d.led.yStrip + 1, d.led.yEnd - k - 1, c.led.diffT - 0.01, c.led.diffT + LED_END.tongueH));
-    return T(m.translate([-xc, -yc, 0]));
+    const ox = d.Sx - d.ledSkin, ix = ox - d.ledW, z0 = d.led.faceT, z1 = Math.max(d.led.bayZ, d.ledDepth);
+    return [1, -1].map((s) => box(Math.min(s * ix, s * ox), Math.max(s * ix, s * ox), d.led.yLit - 0.01, d.led.yEnd, z0, z1));
   }
 
   // ------------------------------------------------------------ rings
@@ -1268,7 +1254,7 @@ export function makeEngine(wasm) {
   }
 
   const BUILDERS = {
-    cassette, cassKey, frame, cap, diffuser, ledCap, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
+    cassette, cassKey, frame, cap, diffuser, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
     ring1: (c) => ring(c, true),
     ringExt: (c) => ring(c, false, c.shell.join === "screws"),
     ringExt2: (c) => ring(c, false, false),
@@ -1283,7 +1269,6 @@ export function makeEngine(wasm) {
     frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode === "hug" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
     cap: (c) => [dims(c), c.fitMode, c.cass, c.tablet.t, c.shell, c.cap, c.inserts],
     diffuser: (c) => [dims(c), c.shell.cornerR, c.led],
-    ledCap: (c) => [dims(c), c.led, feedRoom(derive(c))],
     ring1: (c) => [dims(c), c.shell, c.cap, c.inserts, c.led, c.cass, c.fitMode, c.tablet, c.orientation, c.camSide, c.fit],
     ringExt: (c) => [dims(c), c.shell, c.inserts],
     ringExt2: (c) => [dims(c), c.shell, c.inserts],
@@ -1393,10 +1378,7 @@ export function assembly(c) {
     ...(d.capless ? [] : [{ part: "cap", pos: [0, 0, 0] }]),
     { part: "ring1", pos: [0, 0, fd] },
   ];
-  if (c.led.on) {
-    const ox = d.Sx - d.ledSkin, xc = ox - d.ledW / 2, yc = (d.led.yLit + d.led.yEnd) / 2;
-    items.push({ part: "diffuser", pos: [0, 0, 0] }, { part: "ledCap", pos: [xc, yc, 0] }, { part: "ledCap", pos: [-xc, yc, 0], spin: true });
-  }
+  if (c.led.on) items.push({ part: "diffuser", pos: [0, 0, 0] });
   if (d.dock) items.push({ part: "dockClip", pos: [0, 0, 0] });
   if (d.mount === "wall") {
     items.splice(items.findIndex((i) => i.part === "ring1"), 1);

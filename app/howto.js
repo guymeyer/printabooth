@@ -174,6 +174,8 @@ const strip = (x, y, l) => P(rr(x, y - 4, l, 8, 2)) + [...Array(Math.floor(l / 1
 const plug = (x, y, a = 0) => G(P(rr(-6, -9, 12, 14, 2.5)) + P(rr(-4, -15, 8, 6, 1.2), { w: 1.6 }) + L(0, 5, 0, 16), `translate(${x} ${y}) rotate(${a})`);
 const usbBox = (x, y) => P(rr(x - 14, y - 9, 28, 18, 4)) + L(x + 14, y, x + 30, y) + plug(x + 36, y, 90);
 const charger = (x, y) => P(rr(x - 16, y - 20, 32, 40, 6)) + P(rr(x - 8, y - 12, 7, 4, 1), { w: 1.4 }) + P(rr(x + 1, y - 12, 7, 4, 1), { w: 1.4 });
+// lever wire connector (two levers up)
+const lever = (x, y) => P(rr(x - 10, y - 6, 20, 12, 2.5)) + L(x - 4, y - 6, x - 7, y - 15, { w: 3 }) + L(x + 4, y - 6, x + 1, y - 15, { w: 3 }) + L(x - 18, y - 2, x - 10, y - 2, { w: 1.6 }) + L(x - 18, y + 2, x - 10, y + 2, { w: 1.6 });
 const zip = (x, y) => P(rr(x - 4, y - 4, 8, 8, 1.5)) + P(`M${x + 4} ${y}h22`, { fill: "none", w: 3 });
 const felt = (x, y, l = 60) => P(rr(x, y - 3, l, 6, 1.5)) + L(x + 4, y, x + l - 4, y, { w: 1, dash: "2 3" });
 const clockT = (x, y) => C(x, y, 14) + L(x, y, x, y - 9, { w: 2.2 }) + L(x, y, x + 7, y + 3, { w: 2.2 }) + T(x, y + 32, "30′", { size: 13 });
@@ -200,7 +202,7 @@ export function howtoBody(info) {
   start.push(frame("", hw.slice(0, 8).map((it, i) => {
     const x = 44 + (i % 4) * 77, y = 70 + Math.floor(i / 4) * 100;
     const icon = { insert: insert(x, y), screw: screw(x, y - 12, 22), dowel: dowel(x - 26, y, 52), pole: P(`M${x - 28} ${y}h56`, { fill: "none", w: 12 + 2 * SW }) + P(`M${x - 28} ${y}h56`, { fill: "none", w: 12, stroke: W }),
-      strip: strip(x - 28, y, 56), usb: usbBox(x - 10, y), charger: charger(x, y), zip: zip(x - 10, y), felt: felt(x - 28, y, 56), plywood: board([x - 30, y - 4], 44, 6, 26), anchor: screw(x, y - 12, 18) }[it.icon] || "";
+      strip: strip(x - 28, y, 56), usb: usbBox(x - 10, y), lever: lever(x, y), charger: charger(x, y), zip: zip(x - 10, y), felt: felt(x - 28, y, 56), plywood: board([x - 30, y - 4], 44, 6, 26), anchor: screw(x, y - 12, 18) }[it.icon] || "";
     const k = ["dowel", "pole", "strip", "felt", "plywood", "usb"].includes(it.icon) ? 0.95 : it.icon === "charger" ? 0.9 : 1.45;
     return G(icon, `translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})`) + count(x, y + 42, it.n) + (it.tag ? T(x, y + 58, it.tag, { size: 11, weight: 500 }) : "");
   }).join(""), "Hardware you need"));
@@ -238,20 +240,24 @@ export function howtoBody(info) {
   if (info.led) {
     const right = info.ledFeed === "right", xs = right ? HW - 6 : 6, xe = right ? 6 : HW - 6, yt = HH * 0.3;
     const s0 = pt(O2, xs, yt), e0 = pt(O2, xe, yt);
-    step(head(O2, sz, pair, { ledPath: `<path d="${ledU(HW, HH)}" fill="none" stroke="${ACC}" stroke-width="4" stroke-linecap="round"/>` }) +
-      plug(s0[0] - 16, s0[1] - 24, -30) + arrow(s0[0] - 10, s0[1] - 6, s0[0] - 1, s0[1] + 2) + arrow(...pt(O2, xs, yt + 10), ...pt(O2, xs, yt + 40)) + scissors(e0[0] + 4, e0[1] - 14) +
-      (info.ledLeds ? tag(246, 30, `${info.ledLeds} LEDs · ${info.ledMM} mm`) : "") + pip(284, 228, { pose: "point", face: -1, s: 0.82 }),
-      `One LED strip: start at the top ${info.ledFeed} with its plug into the box, lay it down, across and up, cut at the other top`);
+    // the top of each side is under the face: the strip's lit part starts lower; the hidden ends are dashed
+    const lit = `<path d="${ledU(HW, HH, 6, 0.42)}" fill="none" stroke="${ACC}" stroke-width="4" stroke-linecap="round"/>`;
+    const hid = [xs, xe].map((x) => L(x, HH * 0.3, x, HH * 0.42, { dash: "2 3", w: 1.6 })).join("");
+    const tS = pt(O2, xs, HH * 0.36);
+    // 1: cut the plug off, thread the wires up under the cover and back into the box, rejoin them there
+    step(head(O2, sz, pair, { ledPath: hid }) + (info.ledPlug ? plug(tS[0] - 44, tS[1] + 74, 0) + L(tS[0] - 44, tS[1] + 58, tS[0] - 44, tS[1] + 20, { w: 1.6 }) + scissors(tS[0] - 62, tS[1] + 34) : "") +
+      magnify(...tS, 254, 176, 46, P("M-46 -40h10v80h-10z", { fill: K, w: 1 }) + P("M-36 -26h30v52h-30z", { fill: "none", dash: "3 3", w: 1.6 }) +
+        `<path d="M-30 34V-18q0 -8 8 -8h40" fill="none" stroke="${ACC}" stroke-width="3" stroke-linecap="round"/>` + arrow(10, -26, 36, -26)) +
+      (info.ledPlug ? lever(274, 60) + count(274, 92, 3) : ""),
+      info.ledPlug ? `Cut the plug off the strip's lead. Push the wires up under the top ${info.ledFeed} and back into the box; rejoin them there with 3 lever connectors`
+        : `Push the strip's lead up under the top ${info.ledFeed} and back into the box`);
+    // 2: lay the strip
+    step(head(O2, sz, pair, { ledPath: lit + hid }) + arrow(...pt(O2, xs, HH * 0.6), ...pt(O2, xs, HH * 0.46)) + arrow(...pt(O2, xe, HH * 0.6), ...pt(O2, xe, HH * 0.46)) +
+      scissors(e0[0] + 30, e0[1] + 10) + (info.ledLeds ? tag(246, 30, `${info.ledLeds} LEDs · ${info.ledMM} mm`) : "") + pip(284, 228, { pose: "point", face: -1, s: 0.82 }),
+      `Slide the strip's start up under the top ${info.ledFeed}, lay it down, across and up; cut it and slide the end under the other top`);
     const oD = iso(O2, 0, 0, -36);
-    step(head(O2, sz, pair, { led: true }) + onFront(oD, 0, `<path d="${ledU(HW, HH)}" fill="none" stroke="${K}" stroke-width="8" stroke-linecap="round"/><path d="${ledU(HW, HH)}" fill="none" stroke="${W}" stroke-width="3.6" stroke-linecap="round"/>`) +
+    step(head(O2, sz, pair, { ledPath: lit + hid }) + onFront(oD, 0, `<path d="${ledU(HW, HH, 6, 0.42)}" fill="none" stroke="${K}" stroke-width="8" stroke-linecap="round"/><path d="${ledU(HW, HH, 6, 0.42)}" fill="none" stroke="${W}" stroke-width="3.6" stroke-linecap="round"/>`) +
       arrow(...dz(pt(oD, 6, HH * 0.62), 4), ...dz(pt(oD, 6, HH * 0.62), 28)) + arrow(...dz(pt(oD, HW - 6, HH * 0.62), 4), ...dz(pt(oD, HW - 6, HH * 0.62), 28)) + check(286, 64), "Press in the diffuser");
-    { // the two end covers over the strip's ends, flush with the face
-      const cov = (x, o = {}) => P(rr(x - 5, HH * 0.3 - 2, 10, 15, 2.5), { dash: o.dash, fill: o.dash ? "none" : W });
-      const oC = iso(O2, 0, 0, -30), tip = pt(O2, HW - 6, HH * 0.3 + 6);
-      step(head(O2, sz, pair, { led: true, ledPath: cov(6) + cov(HW - 6) }) + onFront(oC, 0, cov(6, { dash: true }) + cov(HW - 6, { dash: true })) +
-        arrow(...dz(pt(O2, 6, HH * 0.3 + 6), -24), ...dz(pt(O2, 6, HH * 0.3 + 6), -6)) + arrow(...dz(tip, -24), ...dz(tip, -6)) + count(46, 52, 2) +
-        magnify(...tip, 262, 186, 34, P("M-34 -10h68v26h-68z") + P(rr(-8, -26, 16, 30, 3), { fill: W }) + L(-30, 4, 30, 4, { dash: "3 3", w: 1.6 }) + check(24, -22, 0.8)),
-        "Press an end cover into the top of each side, over the strip's ends and the lead"); }
   }
   if (info.dock) step(head(O2, sz, pair) + magnify(...pt(O2, HW / 2, HH - 8), 250, 78, 50,
       P("M-50 18h100v40h-100z") + P("M-12 -30h24v48h-24z") + P(rr(-6, -46, 12, 16, 2), { w: 1.6 }) + L(0, 18, 0, 40) + zip(-4, 26) +

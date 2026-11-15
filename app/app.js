@@ -63,11 +63,11 @@ function call(msg, progress) {
 }
 function busy(on, text) { $("#busy").dataset.idle = String(!on); $("#busyText").textContent = text; }
 
-const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "diffuser", "ledCap", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
+const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "diffuser", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
 // parts this booth uses (built for the preview); the export list adds quantities
 function usedParts() {
   const mt = mountOf(cfg), d = derive(cfg);
-  return ALL_PARTS.filter((p) => !(["diffuser", "ledCap"].includes(p) && !cfg.led.on) && !(p === "dockClip" && !d.dock)
+  return ALL_PARTS.filter((p) => !(p === "diffuser" && !cfg.led.on) && !(p === "dockClip" && !d.dock)
     && !(mt === "wall" && ["ring1", "ringExt", "ringExt2", "ringExtLast", "back", "hub", "ferrule", "postCap", "flange"].includes(p))
     && !(mt !== "wall" && ["wallCase", "wallBack"].includes(p))
     && !(mt !== "tripod" && ["hub", "ferrule"].includes(p)) && !(mt !== "post" && ["postCap", "flange"].includes(p))
@@ -130,7 +130,7 @@ const MATS = {
   cassette: mat(COLORS.cassette), cassKey: mat(COLORS.cassette), frame: mat(COLORS.shell), cap: mat(COLORS.shell), ring1: mat(COLORS.shell),
   ringExt: mat(COLORS.shell), ringExt2: mat(COLORS.shell), ringExtLast: mat(COLORS.shell), back: mat(COLORS.shell), hub: mat(COLORS.hub), ferrule: mat(COLORS.ferrule),
   diffuser: mat(COLORS.diffuser, { emissive: 0xffa53a, emissiveIntensity: 0.55, roughness: 0.4, transparent: true, opacity: 0.92 }),
-  ledCap: mat(COLORS.shell), wallCase: mat(COLORS.shell), wallBack: mat(COLORS.shell), postCap: mat(COLORS.hub), flange: mat(COLORS.hub), dockClip: mat(COLORS.hub), threadTest: mat(COLORS.shell),
+  wallCase: mat(COLORS.shell), wallBack: mat(COLORS.shell), postCap: mat(COLORS.hub), flange: mat(COLORS.hub), dockClip: mat(COLORS.hub), threadTest: mat(COLORS.shell),
 };
 const edgeMat = new THREE.LineBasicMaterial({ color: 0x1d2420, transparent: true, opacity: 0.22 });
 const selEdgeMat = new THREE.LineBasicMaterial({ color: 0xd98516 });
@@ -138,7 +138,7 @@ const selEdgeMat = new THREE.LineBasicMaterial({ color: 0xd98516 });
 // ------------------------------------------------------------------ colors (preview of the filament colors)
 // every printed part takes its role's color from the chosen look unless it has its own; picking a new color adds it to the
 // library. Stored in cfg.colors, so it travels with saves and booth codes.
-const ROLE = { frame: "shell", cap: "shell", ring1: "shell", ringExt: "shell", ringExt2: "shell", ringExtLast: "shell", back: "shell", wallCase: "shell", wallBack: "shell", threadTest: "shell", ledCap: "shell",
+const ROLE = { frame: "shell", cap: "shell", ring1: "shell", ringExt: "shell", ringExt2: "shell", ringExtLast: "shell", back: "shell", wallCase: "shell", wallBack: "shell", threadTest: "shell",
   cassette: "cassette", cassKey: "cassette", hub: "base", postCap: "base", flange: "base", ferrule: "base", dockClip: "base", diffuser: "diffuser" };
 const LOOKS = {
   studio: { label: "Studio", shell: "#e3e1db", cassette: "#2f5d62", base: "#5f6461", diffuser: "#ffc56b" },
@@ -226,7 +226,7 @@ function composeScene() {
     if (it.spin) m.rotation.z = Math.PI;
     if (exploded) {
       const off = {
-        cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], cap: [0, 150, 0], diffuser: [0, 0, -110], ledCap: [0, 0, -150], ring1: [0, 0, 60],
+        cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], cap: [0, 150, 0], diffuser: [0, 0, -110], ring1: [0, 0, 60],
         back: [0, 0, 60 * (cfg.shell.nExt + 2)], hub: [0, -150, 60], postCap: [0, -150, 60], wallCase: [0, 0, 60], wallBack: [0, 0, 140], dockClip: [0, -70, -90],
       }[it.part];
       if (it.part.startsWith("ringExt")) { extIndex++; m.position.z += 60 * (extIndex + 1); }
@@ -492,7 +492,7 @@ function syncControls() {
       <dt>Power</dt><dd>${watts.toFixed(0)} W at full white: ${S.volts} V ${P.full} A${S.usb ? `; a ${P.half} A USB port at half brightness` : ""}</dd>`
       : `<dt>One strip, cut to</dt><dd class="big">${L.strip.toFixed(0)} mm · ${(L.strip / 25.4).toFixed(1)}″</dd>`) + `
       <dt>Channel centerline, shoulder to shoulder</dt><dd>${L.perimeter.toFixed(0)} mm</dd>
-      <dt>End covers</dt><dd>2, each ${LED_END.len} mm: the strip runs ${LED_END.tuck} mm under each, then ${LED_END.len - LED_END.tuck} mm of room for the lead</dd>
+      <dt>Covered ends</dt><dd>the top ${LED_END.len} mm of each side runs under the face: the strip goes ${LED_END.tuck} mm in, leaving ${LED_END.len - LED_END.tuck} mm for the lead</dd>
       <dt>Visible lit length</dt><dd>${L.lit.toFixed(0)} mm</dd>
       <dt>Glass behind the front face</dt><dd>${d.tabletZ.toFixed(1)} mm</dd>`;
     const Sk = LED_STRIPS[cfg.led.strip] || LED_STRIPS.custom;
@@ -940,7 +940,7 @@ function exportList() {
   const list = [
     ["cassette", 1], ...(cfg.fitMode !== "hug" && (cfg.cap.lock || "none") === "none" ? [["cassKey", 1]] : []), ["frame", 1], ...(cfg.cap.lock && cfg.cap.lock !== "none" ? [["cap", 1]] : []), ["ring1", 1],
   ];
-  if (cfg.led.on) list.push(["diffuser", 1], ["ledCap", 2]);
+  if (cfg.led.on) list.push(["diffuser", 1]);
   if (derive(cfg).dock) list.push(["dockClip", 1]);
   const mt = mountOf(cfg);
   if (mt === "wall") { list.splice(list.findIndex(([n]) => n === "ring1"), 1); list.push(["wallCase", 1], ["wallBack", 1]); return list; }
@@ -1057,7 +1057,7 @@ function readme(sizes, projNotes = []) {
   if (nIns) A.push(`Melt the inserts in (${mt === "post" ? "post cap" : "hub"} top${dk ? ", the two under the slot floor for the dock clip" : ""}${glue ? "" : ", frame rear face, rear lugs of every ring"}).`);
   else if (dk) A.push("Melt the two M3 short inserts into the slot floor for the dock clip.");
   A.push(glue ? `Dry-fit, then glue the frame onto ${mt === "wall" ? "the wall case" : "ring 1"}. Clamp or tape, check the seam all round.` : "Screw ring 1 to the frame from inside.");
-  if (cfg.led.on) A.push(`LED: press the strip's lead into the slot at the top of the ${cfg.led.feed === "right" ? "right" : "left"} side (as you face the booth) and feed its plug into the box. The strip starts ${LED_END.len - LED_END.tuck} mm below the top, leaving room for the lead to turn into the slot. Lay it down that side, across the bottom and up the other side; cut at the last mark that ends ${LED_END.len - LED_END.tuck} mm or more below the top. Press in the diffuser, then the two end covers over the strip's ends (they press in; a dab of glue holds them for good).`);
+  if (cfg.led.on) A.push(`LED: the top ${LED_END.len} mm of each side is covered by the frame's face. Cut the plug off the strip's lead, leaving its wires. Push them up under the cover at the top of the ${cfg.led.feed === "right" ? "right" : "left"} side (as you face the booth) and back through the slot into the box (tweezers help). Inside the box, rejoin them to the plug with three lever connectors (or solder), matching colors. Slide the strip's start ${LED_END.tuck} mm up under that cover, then lay it down that side, across the bottom and up the other side. Cut at the last mark that ends no more than ${LED_END.tuck} mm under the far cover, and slide the cut end up under it. Press in the diffuser.`);
   if (dk) A.push("Dock: push the cable's far end down through the passage under the slot into the box. Slide the plug into the clip from the front, zip-tie the cable right under the clip floor, then screw the clip onto the slot floor (reach down from the top).");
   A.push(mt === "wall" ? "Glue on the wall plate, on a flat table so it squares the case." : glue ? "Glue each ring, then the back panel last on a flat table, one joint at a time." : "Screw on each ring (they alternate A, B), then the back panel.");
   if (mt === "tripod") A.push("Screw the drum to ring 1 from inside. Epoxy and pin the ferrules onto the dowels, then thread them into the drum.");
@@ -1188,7 +1188,7 @@ function howtoHardware() {
   if (mt === "tripod") add("dowel", 3, legNumbers() ? `${(legNumbers().cut / 25.4).toFixed(1)}″` : "");
   if (mt === "post") { add("pole", 1, `${postNumbers().pole} mm`); add("insert", 2, "M5"); add("screw", 2, "M5 thumb"); add("anchor", 4, "#8 wood"); add("plywood", +cfg.mount.layers || 2, `${cfg.mount.base} mm`); }
   if (mt === "wall") add("anchor", 2, "#8 / M4");
-  if (cfg.led.on) { add("strip", 1, S ? `${d.led.leds} LEDs` : ""); if (S && S.usb) add("usb", 1, "USB"); }
+  if (cfg.led.on) { add("strip", 1, S ? `${d.led.leds} LEDs` : ""); if (S && S.usb) { add("usb", 1, "USB"); add("lever", 3, "lever"); } }
   add("charger", 1, "2-port");
   add("felt", 1, `${cfg.cass.liner} mm`);
   add("zip", d.dock ? 1 : 0);
@@ -1200,7 +1200,7 @@ function howtoInfo() {
   const pn = mt === "post" ? postNumbers() : null, w = mt === "wall" ? wallNumbers() : null;
   return {
     title: "Booth", subtitle: `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation} · ${mt} · ${cfg.print.nozzle} mm ${cfg.print.material}`,
-    mount: mt, dock: !!d.dock, led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), ledFeed: cfg.led.feed === "right" ? "right" : "left", nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
+    mount: mt, dock: !!d.dock, led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), ledFeed: cfg.led.feed === "right" ? "right" : "left", ledPlug: !!(stripOf(cfg) && stripOf(cfg).usb), nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
     backHoles: mt !== "wall" && cfg.back.mode !== "none", liner: cfg.cass.liner,
     legCut: ln ? `${(ln.cut / 25.4).toFixed(1)}″` : "", poleCut: pn ? `${pn.pole} mm` : "", base: pn ? `${pn.B} mm` : "", layers: pn ? pn.layers : 0,
     keySpan: w ? w.span : 0, keyHeight: w ? `${(w.lockH / 25.4).toFixed(1)}″ up` : "",

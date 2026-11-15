@@ -58,7 +58,6 @@ export function printSettings(c, base) {
     back: { perimeters: perimetersFor([P.sock], P.ew) },
     cassette: c.fitMode === "hug" ? {} : { support_material: 1, support_material_auto: 1 },
     diffuser: { perimeters: 2, fill_density: "100%", brim_width: 2 },
-    ledCap: { perimeters: 2, fill_density: "100%" },
     hub: { perimeters: 5, fill_density: "40%", fill_pattern: "gyroid" },
     ferrule: { perimeters: 6, fill_density: "100%", brim_width: 5 },
   };
@@ -103,7 +102,6 @@ export function printSettings(c, base) {
     [mt === "wall" ? "Wall case" : "Rings", "Upright, front edge down: every visible face is a wall; underside (seam groove) toward the back of the bed"],
     [mt === "wall" ? "Wall plate" : "Back panel", mt === "wall" ? "Wall face down (keyhole pockets open upward)" : "Outer face down on the sheet"],
     ["Cassette", d.hug ? "Back down" : "Face down, supports under the back ledge"],
-    ...(c.led.on ? [["LED end covers", "Face down, tongue up"]] : []),
     ...(mt === "tripod" ? [["Diffuser / base / ferrules", "Flat / top face down / stud down"]] : mt === "post" ? [["Diffuser / post cap / floor flange", "Flat / disc down / disc down"]] : [["Diffuser", "Flat"]]),
     ...(d.dock ? [["Dock clip", "Back down, open side up"]] : []),
   ];
