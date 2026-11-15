@@ -30,6 +30,19 @@ Step 6 sets the nozzle (0.4, 0.6 or 0.8 mm, default 0.8) and material (PETG or P
 
 Step 7, Colors, previews filament colors. Pick a look from the dropdown (Studio, Graphite, Sage, Clay, Cobalt, Night). Under In use, each color is listed with what it covers and how many parts ("Shell · 4 parts"); change a color there and every part wearing it changes too. Hovering a row outlines its parts in the view. To give one part its own color, click it in the view and pick from the swatches or a new color; new colors join the library. Colors travel with saves and booth codes, and the README in the download lists which parts to print in which color.
 
+## Sound
+
+Interface sounds come from [uisfx](https://github.com/romainsimon/uisfx) with its **mechanical** pack: short switch and detent clicks that suit a tool for building hardware and keep up with a page full of choices. They only reinforce what the page already shows.
+
+- **Choices:** a choice, dropdown, tab or view gives a select click. A switch gives toggle-on or toggle-off, and a check box or a back-panel hole (once per stroke) gives check or uncheck, by the new state. Opening or closing a step gives expand or collapse. Typed numbers and sliders stay quiet.
+- **Problems:** a change that brings up a new problem gives a warning instead. A fix that clears one gives success. "Got it" closes it.
+- **Results:** copying the booth code, restoring one, opening and closing the instructions, the extension ring stepper (snap, or blocked at its limit), and Reset (delete, only when something changed) each have their own cue.
+- **Download:** a quiet processing loop runs while the files build and always stops first. Then you hear complete, error or cancel.
+- **Sound on/off:** the button next to Reset turns sounds on and off. Off is immediate, even mid-download. The choice and the volume are kept in this browser (`printabooth:sound`).
+- **Before you interact:** nothing plays, and no audio starts, until your first click or key press.
+
+The library is vendored as `app/uisfx.js` (`npm run vendor` refreshes it from `node_modules`). Its code is MIT licensed and its sounds are CC0, outside this project's license. `npm run check` includes `checks/sound.mjs`. With the page served on port 8772, `npm run check:sound-ui` checks the sounds in a real browser.
+
 ## Export
 
 The download is a zip with:

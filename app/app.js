@@ -4,6 +4,7 @@ import { OrbitControls } from "./OrbitControls.js";
 import { toCreasedNormals } from "./BufferGeometryUtils.js";
 import { LED_END, DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive, mountOf, LED_STRIPS, stripOf, ledFit, poleOf, postSpec, flangeSpec, POST, FLANGE, PLY, KEY, DOCK_PLUGS, plugOf } from "./geom.js";
 import { howtoBody, howtoPage, HOWTO_CSS } from "./howto.js";
+import { sound, toggleCue, checkCue, expandCue, changeCue } from "./sound.js";
 import { PRINTERS } from "./pack3mf.js";
 import { printSettings, applyConfig, presetKey } from "./printsettings.js";
 
@@ -32,6 +33,13 @@ let view = "head", focus = null;
 let holes = null, sockets = null, built = false;
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
+
+// ------------------------------------------------------------------ interface sound (see sound.js)
+const sfx = sound();
+// audio unlocks on the first real press; nothing plays before that
+for (const ev of ["pointerdown", "keydown"]) addEventListener(ev, () => { if (!sfx.unlocked) sfx.unlock(); }, { capture: true });
+addEventListener("pagehide", () => sfx.stopAll());
+const errorsNow = () => validate(cfg).filter((i) => i.level === "error").length;
 const get = (p) => p.split(".").reduce((o, k) => o[k], cfg);
 const set = (p, v) => { const ks = p.split("."); const last = ks.pop(); ks.reduce((o, k) => o[k], cfg)[last] = v; };
 const mm = (v, d = 0) => `${(+v).toFixed(d)} mm`;
@@ -379,10 +387,11 @@ for (const [k, v] of Object.entries(INSERTS)) insSel.add(new Option(v.label, k))
 const presetSel = $("#preset");
 for (const [k, t] of Object.entries(TABLETS)) presetSel.add(new Option(t.label, k));
 presetSel.addEventListener("change", () => {
-  const k = presetSel.value; cfg.tablet.preset = k;
+  const k = presetSel.value, before = errorsNow(); cfg.tablet.preset = k;
   if (k !== "custom") Object.assign(cfg.tablet, (({ label, ...r }) => r)(TABLETS[k]));
   else $("#dims").open = true;
   changed();
+  sfx.play(changeCue("select", before, errorsNow()));
 });
 
 function fmt(path, v) {
@@ -581,7 +590,7 @@ function printChange(path, v) {
 for (const el of $$("input[data-path], select[data-path]")) {
   const ev = el.type === "range" ? "input" : "change";
   el.addEventListener(ev, () => {
-    const p = el.dataset.path;
+    const p = el.dataset.path, before = errorsNow();
     let v = el.type === "checkbox" ? el.checked : el.value;
     if (el.type === "number" || el.type === "range" || el.dataset.num) { v = parseFloat(v); if (!isFinite(v)) return; }
     if (p.startsWith("tablet.")) cfg.tablet.preset = "custom";
@@ -592,19 +601,29 @@ for (const el of $$("input[data-path], select[data-path]")) {
     set(p, v);
     if (p === "led.strip") { const f = ledFit(cfg, v); if (f) { cfg.led.w = f.w; cfg.led.depth = f.depth; } }   // a strip sizes its channel
     changed(el.type === "range" ? 260 : 120);
+    // switches and dropdowns answer; typed numbers and sliders stay quiet unless they bring up a new problem
+    const after = errorsNow(), cue = el.type === "checkbox" ? toggleCue(el.checked) : el.tagName === "SELECT" ? "select" : null;
+    if (cue) sfx.play(changeCue(cue, before, after)); else if (after > before) sfx.play("warning");
   });
 }
 for (const seg of $$(".seg[data-path]")) seg.addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
+  if (String(get(seg.dataset.path)) === b.dataset.v) return;   // already chosen
+  const before = errorsNow();
   if (seg.dataset.path.startsWith("print.")) printChange(seg.dataset.path, b.dataset.v);
   else set(seg.dataset.path, b.dataset.v);
   if (seg.dataset.path === "fitMode" && b.dataset.v === "universal") cfg.dock.on = false;   // the dock only fits the snug shell
   changed(60);
+  sfx.play(changeCue("select", before, errorsNow()));
 });
 $("#camH").addEventListener("input", (e) => { cfg.legs.camHeight = Math.round(parseFloat(e.target.value) * 25.4); save(); syncControls(); renderStats(); if (view === "kiosk") composeScene(); });
-$("#extMinus").addEventListener("click", () => { if (cfg.shell.nExt > 0) { cfg.shell.nExt--; changed(40); } });
-$("#extPlus").addEventListener("click", () => { if (cfg.shell.nExt < 6) { cfg.shell.nExt++; changed(40); } });
-$("#reset").addEventListener("click", () => { cfg = clone(DEFAULTS); focus = null; changed(0); });
+$("#extMinus").addEventListener("click", () => { if (cfg.shell.nExt > 0) { cfg.shell.nExt--; changed(40); sfx.play("snap"); } else sfx.play("blocked"); });
+$("#extPlus").addEventListener("click", () => { if (cfg.shell.nExt < 6) { cfg.shell.nExt++; changed(40); sfx.play("snap"); } else sfx.play("blocked"); });
+$("#reset").addEventListener("click", () => {
+  const was = JSON.stringify(cfg);
+  cfg = clone(DEFAULTS); focus = null; changed(0);
+  if (JSON.stringify(cfg) !== was) sfx.play("delete");   // only when there was something to clear
+});
 $("#bPreset").addEventListener("change", (e) => { if (e.target.value === "custom") return; presetSel.value = e.target.value; presetSel.dispatchEvent(new Event("change")); });
 { // Basic / Advanced tabs; the choice is remembered on this browser
   const MODE = "printabooth.mode";
@@ -615,8 +634,9 @@ $("#bPreset").addEventListener("change", (e) => { if (e.target.value === "custom
   };
   let m = "basic"; try { m = localStorage.getItem(MODE) || "basic"; } catch (e) {}
   setMode(m);
-  $("#tabBasic").addEventListener("click", () => setMode("basic")); $("#tabAdv").addEventListener("click", () => setMode("advanced"));
-  $(".modes").addEventListener("keydown", (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const b = $("#tabBasic").getAttribute("aria-selected") === "true"; setMode(b ? "advanced" : "basic"); (b ? $("#tabAdv") : $("#tabBasic")).focus(); } });
+  const pick = (m) => { if ($("#basicPane").hidden === (m !== "basic")) return; setMode(m); sfx.play("select"); };
+  $("#tabBasic").addEventListener("click", () => pick("basic")); $("#tabAdv").addEventListener("click", () => pick("advanced"));
+  $(".modes").addEventListener("keydown", (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const b = $("#tabBasic").getAttribute("aria-selected") === "true"; pick(b ? "advanced" : "basic"); (b ? $("#tabAdv") : $("#tabBasic")).focus(); } });
   // Basic's last step works the Export step's buttons and shows their messages
   $("#bExport").addEventListener("click", () => $("#exportBtn").click());
   $("#bHowto").addEventListener("click", () => $("#howtoBtn").click());
@@ -629,12 +649,16 @@ $("#bPreset").addEventListener("change", (e) => { if (e.target.value === "custom
 
 $("[data-view]").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
+  if (view !== b.dataset.v || focus) sfx.play("select");
   view = b.dataset.v; focus = null; lastViewKey = "";
   for (const x of $$("[data-view] button")) x.setAttribute("aria-pressed", String(x === b));
   $("#focusPill").classList.remove("show");
   composeScene();
 });
-$("#focusClose").addEventListener("click", () => { focus = null; lastViewKey = ""; $("#focusPill").classList.remove("show"); composeScene(); });
+$("#focusClose").addEventListener("click", () => { sfx.play("collapse"); focus = null; lastViewKey = ""; $("#focusPill").classList.remove("show"); composeScene(); });
+
+// opening or closing a settings step (the state it ends up in)
+$(".panel").addEventListener("click", (e) => { const sm = e.target.closest("details > summary"); if (sm) sfx.play(expandCue(!sm.parentElement.open)); });
 
 // ------------------------------------------------------------------ issues
 // warnings with no fix can be acknowledged; they stay hidden until their wording (and so the numbers) changes
@@ -648,6 +672,7 @@ function fixAll() {
     applyFix(todo[0].fix);
   }
   changed(0);
+  sfx.play(errorsNow() ? "warning" : "success");
 }
 function renderIssues(list) {
   const box = $("#issues"); box.replaceChildren();
@@ -660,11 +685,11 @@ function renderIssues(list) {
     div.append(b, s);
     if (i.fix) {
       const btn = document.createElement("button"); btn.type = "button"; btn.className = "fixbtn"; btn.textContent = i.fix.label;
-      btn.addEventListener("click", () => { applyFix(i.fix); changed(0); });
+      btn.addEventListener("click", () => { const before = errorsNow(); applyFix(i.fix); changed(0); sfx.play(changeCue("success", before, errorsNow())); });
       div.append(btn);
     } else if (i.level !== "error") {
       const btn = document.createElement("button"); btn.type = "button"; btn.className = "fixbtn ghost"; btn.textContent = "Got it";
-      btn.addEventListener("click", () => { acked.add(i.msg); renderIssues(validate(cfg)); });
+      btn.addEventListener("click", () => { acked.add(i.msg); renderIssues(validate(cfg)); sfx.play("close"); });
       div.append(btn);
     }
     box.append(div);
@@ -729,6 +754,7 @@ svg.addEventListener("pointerdown", (e) => {
   if (!holes) return;
   const h = cellAt(e); if (!h) return;
   paint = !isOn(h); setCell(h.i, h.j, paint); svg.setPointerCapture(e.pointerId); renderHoles();
+  sfx.play(checkCue(paint));   // once per stroke, not per cell painted
 });
 svg.addEventListener("pointermove", (e) => {
   if (paint === null) return;
@@ -749,7 +775,7 @@ for (const chip of $$("[data-preset]")) chip.addEventListener("click", () => {
     lower: () => ok.filter((h) => h.j < 0),
   }[chip.dataset.preset]();
   cfg.back.cells = pick && pick.map((h) => [h.i, h.j]);
-  changed(50);
+  changed(50); sfx.play("select");
 });
 
 // ------------------------------------------------------------------ stats + legs
@@ -863,18 +889,18 @@ $("#s7").addEventListener("toggle", () => { if (!$("#s7").open) { hoverParts = n
 $("#lookSel").addEventListener("change", (e) => {
   if (!e.target.value) return;
   const C = colorsCfg(); C.look = e.target.value; C.parts = {};
-  save(); applyColors(); renderPalette();
+  save(); applyColors(); renderPalette(); sfx.play("select");
 });
 $("#palList").addEventListener("input", (e) => { if (e.target.dataset.i != null) { e.target.parentElement.style.background = e.target.value; recolorGroup(+e.target.dataset.i, e.target.value, false); } });
-$("#palList").addEventListener("change", (e) => { if (e.target.dataset.i != null) recolorGroup(+e.target.dataset.i, e.target.value, true); });
+$("#palList").addEventListener("change", (e) => { if (e.target.dataset.i != null) { recolorGroup(+e.target.dataset.i, e.target.value, true); sfx.play("select"); } });
 $("#palList").addEventListener("pointerover", (e) => { const r = e.target.closest(".pal-row"); hoverParts = r ? palGroups[+r.dataset.i].parts : null; paintEdges(); });
 $("#palList").addEventListener("pointerleave", () => { hoverParts = null; paintEdges(); });
 $("#palList").addEventListener("focusin", (e) => { const r = e.target.closest(".pal-row"); if (r) { hoverParts = palGroups[+r.dataset.i].parts; paintEdges(); } });
 $("#palList").addEventListener("focusout", () => { hoverParts = null; paintEdges(); });
-$("#swatches").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) setPartColor(b.dataset.c); });
+$("#swatches").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b && b.getAttribute("aria-pressed") !== "true") { setPartColor(b.dataset.c); sfx.play("select"); } });
 $("#swatches").addEventListener("input", (e) => { if (e.target.id === "palPick") setPartColor(e.target.value, false); });
-$("#swatches").addEventListener("change", (e) => { if (e.target.id === "palPick") setPartColor(e.target.value); });   // committed: the new color joins the library
-$("#palClear").addEventListener("click", () => selectPart(null));
+$("#swatches").addEventListener("change", (e) => { if (e.target.id === "palPick") { setPartColor(e.target.value); sfx.play("select"); } });   // committed: the new color joins the library
+$("#palClear").addEventListener("click", () => { selectPart(null); sfx.play("deselect"); });
 // click (not drag) on a part selects it; Escape lets go
 {
   const ray = new THREE.Raycaster(); let down = null;
@@ -884,9 +910,11 @@ $("#palClear").addEventListener("click", () => selectPart(null));
     const r = renderer.domElement.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
     const hit = ray.intersectObjects(root.children, true).find((h) => h.object.isMesh && h.object.userData.part);
+    const was = selPart;
     selectPart(hit ? hit.object.userData.part : null);
+    if (selPart && selPart !== was) sfx.play("select"); else if (!selPart && was) sfx.play("deselect");
   });
-  addEventListener("keydown", (e) => { if (e.key !== "Escape" || document.querySelector("dialog[open]")) return; if (selPart) selectPart(null); });
+  addEventListener("keydown", (e) => { if (e.key !== "Escape" || document.querySelector("dialog[open]")) return; if (selPart) { selectPart(null); sfx.play("deselect"); } });
 }
 function renderStats() {
   const d = derive(cfg), depth = assembly(cfg).headDepth, ln = legNumbers();
@@ -940,12 +968,12 @@ function renderParts() {
     const row = document.createElement("div"); row.className = "part";
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.id = `pick-${name}`; cb.checked = selected.has(name);
     cb.setAttribute("aria-label", `Include ${PART_INFO[name].label}`);
-    cb.addEventListener("change", () => { cb.checked ? selected.add(name) : selected.delete(name); });
+    cb.addEventListener("change", () => { cb.checked ? selected.add(name) : selected.delete(name); sfx.play(checkCue(cb.checked)); });
     const pn = document.createElement("div"); pn.className = "pn";
     const btn = document.createElement("button"); btn.type = "button";
     btn.textContent = `${partLabel(name)}${qty > 1 ? ` ×${qty}` : ""}`;
     btn.title = "Show this part on its own";
-    btn.addEventListener("click", () => { focus = name; lastViewKey = ""; $("#focusName").textContent = partLabel(name); $("#focusPill").classList.add("show"); composeScene(); });
+    btn.addEventListener("click", () => { sfx.play("expand"); focus = name; lastViewKey = ""; $("#focusName").textContent = partLabel(name); $("#focusPill").classList.add("show"); composeScene(); });
     const pd = document.createElement("span"); pd.className = "pd";
     pd.textContent = `${s.map((v) => v.toFixed(0)).sort((a, b) => b - a).join(" × ")} mm${PART_INFO[name].note ? " · " + PART_INFO[name].note : ""}`;
     pn.append(btn, pd);
@@ -1049,8 +1077,8 @@ $("#exportBtn").addEventListener("click", async () => {
   const msg = $("#exportMsg"), btn = $("#exportBtn");
   msg.classList.remove("err");
   const parts = exportList().map(([n]) => n).filter((n) => selected.has(n) && GEO[n]);
-  if (!parts.length) { msg.textContent = "Select at least one part."; return; }
-  if (validate(cfg).some((i) => i.level === "error")) { msg.classList.add("err"); msg.textContent = "Fix the highlighted settings first."; return; }
+  if (!parts.length) { msg.textContent = "Select at least one part."; sfx.play("blocked"); return; }
+  if (validate(cfg).some((i) => i.level === "error")) { msg.classList.add("err"); msg.textContent = "Fix the highlighted settings first."; sfx.play("blocked"); return; }
   // on claude.ai the host's downloads capability saves the file; anywhere else (Netlify, local) a plain browser download
   let downloads = null;
   try { downloads = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
@@ -1060,6 +1088,8 @@ $("#exportBtn").addEventListener("click", async () => {
   } };
   btn.disabled = true;
   try {
+    // the processing loop runs while the files build and stops on every way out; then complete, error or cancel
+    await sfx.during("export", "processing", async () => {
     const qty = Object.fromEntries(exportList()), labels = Object.fromEntries(parts.map((p) => [p, partLabel(p)]));
     const title = `cassette-booth-${slug(cfg.tablet.preset)}-${cfg.orientation}`;
     if (!PRESET_BASE) await presetsReady;
@@ -1099,6 +1129,7 @@ $("#exportBtn").addEventListener("click", async () => {
     msg.textContent = `Ready: ${(blob.size / 1e6).toFixed(1)} MB. Saving…`;
     await downloads.save({ filename: `cassette-booth-${slug(cfg.tablet.preset)}-${cfg.orientation}.zip`, data: blob });
     msg.textContent = "Saved.";
+    }, { cancelled: (e) => e && e.code === "declined" });
   } catch (e) {
     msg.classList.add("err");
     msg.textContent = e && e.code === "declined" ? "Download cancelled." : `Export failed: ${e.message || e.code || e}`;
@@ -1130,18 +1161,18 @@ function restore(obj, how) {
   $("#codeMsg").textContent = `Restored ${how}: ${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation}, ${mountOf(cfg)}.`;
 }
 $("#codeLoad").addEventListener("click", async () => {
-  try { restore(await decodeCode($("#codeIn").value), "from the code"); } catch (e) { $("#codeMsg").textContent = e.message; }
+  try { restore(await decodeCode($("#codeIn").value), "from the code"); sfx.play("success"); } catch (e) { $("#codeMsg").textContent = e.message; sfx.play("error"); }
 });
 $("#cfgFile").addEventListener("change", async (e) => {
   const f = e.target.files[0]; if (!f) return;
-  try { const j = JSON.parse(await f.text()); restore(j, `from ${f.name}`); } catch (err) { $("#codeMsg").textContent = err.message || "Couldn't read that file."; }
+  try { const j = JSON.parse(await f.text()); restore(j, `from ${f.name}`); sfx.play("success"); } catch (err) { $("#codeMsg").textContent = err.message || "Couldn't read that file."; sfx.play("error"); }
   e.target.value = "";
 });
 $("#codeCopy").addEventListener("click", async () => {
   const code = await encodeCode(cfg);
   $("#codeIn").value = code;
-  try { await navigator.clipboard.writeText(code); $("#codeMsg").textContent = "Booth code copied. Paste it here any time to bring this booth back."; }
-  catch (e) { $("#codeIn").select(); $("#codeMsg").textContent = "Booth code is in the box above; copy it from there."; }
+  try { await navigator.clipboard.writeText(code); $("#codeMsg").textContent = "Booth code copied. Paste it here any time to bring this booth back."; sfx.play("copy"); }
+  catch (e) { $("#codeIn").select(); $("#codeMsg").textContent = "Booth code is in the box above; copy it from there."; sfx.play("warning"); }
 });
 // a code in the page address (#cfg=PB1....) loads on open
 (async () => { const m = /[#&]cfg=([^&]+)/.exec(location.hash); if (m) try { restore(await decodeCode(decodeURIComponent(m[1])), "from the link"); } catch (e) {} })();
@@ -1180,16 +1211,31 @@ function howtoInfo() {
 $("#howtoBtn").addEventListener("click", async () => {
   boothCode = await encodeCode(cfg);
   $("#howtoBody").innerHTML = `<style>${HOWTO_CSS}</style><div class="howto-doc"><h1>Booth</h1><p class="hsub">${howtoInfo().subtitle}</p>${howtoBody(howtoInfo())}</div>`;
-  $("#howto").showModal();
+  $("#howto").showModal(); sfx.play("open");
 });
+$("#howto").addEventListener("close", () => sfx.play("close"));   // the close button and Escape both end here
 $("#howtoClose").addEventListener("click", () => $("#howto").close());
 $("#howtoSave").addEventListener("click", async () => {
   const data = new Blob([howtoPage(howtoInfo())], { type: "text/html" });
   let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
-  if (dl) { try { await dl.save({ filename: "booth-instructions.html", data }); } catch (e) {} return; }
+  if (dl) { try { await dl.save({ filename: "booth-instructions.html", data }); sfx.play("success"); } catch (e) { sfx.play(e && e.code === "declined" ? "cancel" : "error"); } return; }
   const url = URL.createObjectURL(data), a = Object.assign(document.createElement("a"), { href: url, download: "booth-instructions.html" });
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+  sfx.play("success");
 });
+
+// ------------------------------------------------------------------ sound on/off (stored with the player's preferences)
+{
+  const btn = $("#soundBtn");
+  const show = () => { const on = sfx.isEnabled(); btn.setAttribute("aria-pressed", String(on)); $("#soundTxt").textContent = on ? "Sound on" : "Sound off"; };
+  btn.addEventListener("click", () => {
+    const on = !sfx.isEnabled();
+    sfx.setEnabled(on);          // turning off stops every loop first
+    if (on) sfx.play("toggle-on");
+    show();
+  });
+  show();
+}
 
 // ------------------------------------------------------------------ go
 syncControls();
