@@ -410,6 +410,9 @@ function keepCustom(sel, v, label) {
 }
 const feetIn = (inches) => `${Math.floor(inches / 12)}′ ${(inches % 12).toFixed(1).replace(/\.0$/, "")}″`;
 function syncBasic() {
+  const ph = cfg.print.projects === "one" ? "Every part in one XL project, laid out over as many beds as it needs (a new file every 9 beds). Parts meant for the Core One print on the XL."
+    : "An XL project for the big parts and a Core One HF 0.4 project for the small ones, each with its own printer settings.";
+  $("#aProjHint").textContent = $("#bProjHint").textContent = ph;
   const mt = mountOf(cfg), custom = !(cfg.tablet.preset in TABLETS) || cfg.tablet.preset === "custom";
   opts($("#bPreset"), Object.entries(TABLETS).filter(([k]) => k !== "custom").map(([k, t]) => [k, t.label]), custom ? ["custom", "Custom size (set in Advanced)"] : null);
   $("#bPreset").value = custom ? "custom" : cfg.tablet.preset;
@@ -559,7 +562,7 @@ function renderPrint() {
   if (!PRESET_BASE) return;
   const ps = printSettings(cfg, PRESET_BASE);
   $("#sum6").textContent = `${ps.nozzle} mm nozzle · ${ps.material}`;
-  $("#sum8").textContent = `STLs + PrusaSlicer projects · ${ps.nozzle} mm · ${ps.material}`;
+  $("#sum8").textContent = `STLs + ${cfg.print.projects === "one" ? "one PrusaSlicer project" : "PrusaSlicer projects"} · ${ps.nozzle} mm · ${ps.material}`;
   $("#printReminder").textContent = ps.reminder;
   const fill = (el, rows) => { el.replaceChildren(); for (const [k, v, note] of rows) {
     const dt = document.createElement("dt"); dt.textContent = k;
@@ -990,6 +993,7 @@ function readme(sizes, projNotes = []) {
   const tl = (TABLETS[cfg.tablet.preset] || TABLETS.custom).label;
   lines.push("CASSETTE BOOTH — PRINT PACK", "", `Tablet: ${tl}, ${cfg.orientation}`, `Face: ${d.Sw} x ${d.Sh} mm (${cfg.fitMode === "hug" ? "hugged to this tablet" : "universal " + d.Cw + " mm cassette"}), head depth ${assembly(cfg).headDepth.toFixed(0)} mm (${mountOf(cfg) === "wall" ? "wall case" : `${cfg.shell.nExt} extension rings`}), ${mountOf(cfg)} mount${d.dock ? ", USB-C dock" : ""}`, "");
   if (projNotes.length) lines.push("PRUSASLICER PROJECTS (open in PrusaSlicer 2.9 or newer: File > Open project)", ...projNotes,
+    ...(cfg.print.projects === "one" ? ["  All the parts are in one XL project (parts meant for the Core One print on the XL too)."] : []),
     "  Each opens with the printer, print and filament presets selected and every part already placed on its bed, with the",
     "  per-part settings below applied as object settings. Use Slice all, then Export all G-codes. If your installed profiles",
     "  are a newer version, a few values may show as modified; that's expected.", "");
@@ -1094,7 +1098,7 @@ $("#exportBtn").addEventListener("click", async () => {
     const title = `cassette-booth-${slug(cfg.tablet.preset)}-${cfg.orientation}`;
     if (!PRESET_BASE) await presetsReady;
     const ps = printSettings(cfg, PRESET_BASE);
-    const res = await call({ type: "export", cfg: clone(cfg), parts, qty, labels, title, per: ps.per }, (p) => {
+    const res = await call({ type: "export", cfg: clone(cfg), parts, qty, labels, title, per: ps.per, oneProject: cfg.print.projects === "one" }, (p) => {
       msg.textContent = p === "projects" ? "Laying the parts out on PrusaSlicer beds…" : `Generating ${PART_INFO[p].label.toLowerCase()} with full threads…`;
     });
     msg.textContent = "Packing the zip…";

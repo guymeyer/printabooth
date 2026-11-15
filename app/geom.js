@@ -17,7 +17,9 @@ export const DEFAULTS = {
   inserts: { type: "m3", screw: 3, hole: 4.2, len: 5.7 },
   back: { t: 8, mode: "threaded", d: 12, pitch: 1.75, clr: 0.4, grid: 25, cells: null },   // Thread Boards estimate: print the test coupon first
   legs: { splay: 18, dowel: 38.1, camHeight: 1524, threadClr: 0.8, blend: false, circle: 26, style: "puck" },   // style: "puck" (current) | "bent" | "cluster" (older)
-  print: { nozzle: 0.8, material: "PETG", ironing: false },   // nozzle drives the shell's wall/skin snapping; material only the slicer settings
+  // nozzle drives the shell's wall/skin snapping; material only the slicer settings. projects: "printer" = one PrusaSlicer
+  // project per printer (XL + Core One); "one" = a single project with every part on the XL's beds
+  print: { nozzle: 0.8, material: "PETG", ironing: false, projects: "printer" },
   // tripod: drum base + 3 dowel legs; post: one pole into a post cap, wood floor base with a printed flange; wall: shallow case + wall plate
   mount: { type: "tripod", wallD: 40, pole: "emt125", od: 38.4, hollow: true, base: 600, layers: 2 },
   // USB-C dock (hugged tray, port on the bottom edge): a fixed plug in a printed clip, so the iPad plugs in as the cassette drops in

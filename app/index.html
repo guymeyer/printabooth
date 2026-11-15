@@ -353,6 +353,9 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
 
           <section class="q" aria-labelledby="bq11"><h2 id="bq11"><span class="num">11</span>Get your files</h2>
             <div class="qb">
+              <div class="field"><span class="lbl">PrusaSlicer projects</span>
+                <div class="seg" data-path="print.projects" role="group" aria-label="PrusaSlicer projects"><button type="button" data-v="printer">One per printer</button><button type="button" data-v="one">All in one file</button></div>
+                <p class="hint" id="bProjHint"></p></div>
               <div class="export-row"><button class="btn primary" id="bExport" type="button">Download print files</button><button class="btn" id="bHowto" type="button">Instructions</button><button class="btn" id="bCode" type="button">Copy booth code</button></div>
               <p class="hint" id="bMsg" aria-live="polite">Everything you need to print and build it: the parts, ready-to-slice projects, and picture instructions.</p>
             </div></section>
@@ -618,6 +621,9 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
           <summary><span class="num">8</span><span class="st"><h2>Export</h2><span class="sum" id="sum8">STL files in print orientation</span></span><span class="chev">▶</span></summary>
           <div class="body">
             <div class="parts" id="parts"></div>
+            <div class="field"><span class="lbl">PrusaSlicer projects</span>
+              <div class="seg" data-path="print.projects" role="group" aria-label="PrusaSlicer projects"><button type="button" data-v="printer">One per printer</button><button type="button" data-v="one">All in one file</button></div>
+              <p class="hint" id="aProjHint"></p></div>
             <div class="export-row">
               <button class="btn primary" id="exportBtn" type="button">Download print files (.zip)</button>
               <div class="export-msg" id="exportMsg" aria-live="polite"></div>
@@ -631,7 +637,7 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
               <div class="restore"><input id="codeIn" type="text" spellcheck="false" autocomplete="off" placeholder="Paste a booth code (PB1…)"><button class="btn" id="codeLoad" type="button">Load</button><label class="btn" for="cfgFile">Open .json</label><input id="cfgFile" type="file" accept=".json,application/json" hidden></div>
               <p class="hint" id="codeMsg" aria-live="polite">Every download carries its booth code (in the README and booth-config.json). Paste the code or open the JSON here to bring that booth back exactly.</p>
             </div>
-            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL project for the nozzle and material set in Print setup, and a Core One HF 0.4 project for the base and ferrules, every part already placed across multiple beds with its print settings), illustrated instructions, a README with quantities and hardware, and your settings as JSON plus a booth code you can paste back in here. The projects open in PrusaSlicer 2.9 or newer.</p>
+            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, ready-to-slice PrusaSlicer projects (by default an XL project for the nozzle and material set in Print setup and a Core One HF 0.4 project for the smaller parts, or all in one XL project; every part already placed across multiple beds with its print settings), illustrated instructions, a README with quantities and hardware, and your settings as JSON plus a booth code you can paste back in here. The projects open in PrusaSlicer 2.9 or newer.</p>
           </div>
         </details>
         </div>

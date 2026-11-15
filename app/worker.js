@@ -33,7 +33,8 @@ onmessage = async (ev) => {
         out[p] = { buf: r.buf, size: r.size };
         transfer.push(r.buf);
       }
-      // PrusaSlicer projects: one per printer, parts laid out over as many beds as they need
+      // PrusaSlicer projects: one per printer, parts laid out over as many beds as they need; or (oneProject) every part in a
+      // single XL project, since every part fits the XL's bed but not every part fits the Core One's
       let projects = [];
       if (ev.data.qty) {
         postMessage({ id, type: "progress", part: "projects" });
@@ -41,7 +42,7 @@ onmessage = async (ev) => {
         const fits = (s, bed) => { const a = [s[0], s[1]].sort((x, y) => y - x), b = bed.slice().sort((x, y) => y - x); return a[0] <= b[0] - 12 && a[1] <= b[1] - 12; };
         for (const p of parts) {
           const want = (PART_INFO[p] || {}).printer === "Core One" ? "coreone" : "xl";
-          const g = want === "coreone" && !fits(out[p].size, PRINTERS.coreone.bed) ? "xl" : want;
+          const g = ev.data.oneProject || (want === "coreone" && !fits(out[p].size, PRINTERS.coreone.bed)) ? "xl" : want;
           const n = ev.data.qty[p] || 1;
           for (let k = 0; k < n; k++) groups[g].push({ name: p, fixed: SEAM_REAR.has(p), objName: ev.data.labels[p], label: ev.data.labels[p] + (n > 1 ? ` ${k + 1}` : ""), w: out[p].size[0], h: out[p].size[1] });
         }
@@ -53,7 +54,7 @@ onmessage = async (ev) => {
             const used = new Set(chunk.flat().map((q) => q.item.name)), sub = {};
             for (const n of used) sub[n] = meshes[n];
             const suffix = beds.length > MAX_BEDS ? `-${f + 1}` : "";
-            projects.push({ printer: key, name: `${ev.data.title}-${key}${suffix}`, beds: chunk.length, files: projectFiles(chunk, sub, P.bed, cfg, `${ev.data.title} (${P.label})`, ev.data.per || {}) });
+            projects.push({ printer: key, name: `${ev.data.title}-${ev.data.oneProject ? "all-parts" : key}${suffix}`, beds: chunk.length, files: projectFiles(chunk, sub, P.bed, cfg, `${ev.data.title} (${P.label})`, ev.data.per || {}) });
           }
         }
       }

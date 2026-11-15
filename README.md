@@ -48,7 +48,7 @@ The library is vendored as `app/uisfx.js` (`npm run vendor` refreshes it from `n
 The download is a zip with:
 
 - STLs in print orientation, full-detail threads.
-- Two PrusaSlicer 2.9+ projects: one for a Prusa XL (single tool, the chosen nozzle and material) and one for a Core One (HF 0.4, the chosen material). Each loads with its printer and print presets and the Generic PETG or PLA filament preset selected (any brand) and every part already placed on its bed, across up to nine beds, with per-part settings applied.
+- PrusaSlicer 2.9+ projects. By default there are two: one for a Prusa XL (single tool, the chosen nozzle and material) and one for a Core One (HF 0.4, the chosen material). Choose "All in one file" (in Export, or Basic step 11) to get a single XL project with every part, since every part fits the XL's bed; past nine beds it continues in a second file. Each loads with its printer and print presets and the Generic PETG or PLA filament preset selected (any brand) and every part already placed on its bed, across up to nine beds, with per-part settings applied.
 - `instructions.html`: picture instructions for this exact booth, drawn to the visual language in `docs/instructions-style.md` (an original character and symbol set; no words needed).
 - A README with quantities, hardware, print settings and assembly order, plus the settings as JSON and a booth code. Paste the code (or open the JSON) under Export, Restore a booth to bring the booth back exactly; a link ending in `#cfg=<code>` opens it too.
 
