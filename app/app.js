@@ -511,7 +511,7 @@ function renderPrint() {
   if (!PRESET_BASE) return;
   const ps = printSettings(cfg, PRESET_BASE);
   $("#sum6").textContent = `${ps.nozzle} mm nozzle · ${ps.material}`;
-  $("#sum7").textContent = `STLs + PrusaSlicer projects · ${ps.nozzle} mm · ${ps.material}`;
+  $("#sum8").textContent = `STLs + PrusaSlicer projects · ${ps.nozzle} mm · ${ps.material}`;
   $("#printReminder").textContent = ps.reminder;
   const fill = (el, rows) => { el.replaceChildren(); for (const [k, v, note] of rows) {
     const dt = document.createElement("dt"); dt.textContent = k;
@@ -751,7 +751,8 @@ function colorGroups() {
 function renderPalette() {
   if (selPart && !shownParts().includes(selPart)) selPart = null;
   const C = colorsCfg(), groups = colorGroups(), custom = Object.keys(C.parts).length > 0;
-  $("#palDots").innerHTML = groups.slice(0, 4).map((g) => `<i style="background:${g.c}"></i>`).join("");
+  $("#palDots").innerHTML = groups.slice(0, 5).map((g) => `<i style="background:${g.c}"></i>`).join("");
+  $("#sum7").textContent = `${custom ? "Custom" : lookOf().label} · ${groups.length} color${groups.length === 1 ? "" : "s"}`;
   $("#lookSel").innerHTML = (custom ? `<option value="" selected>Custom</option>` : "") +
     Object.entries(LOOKS).map(([k, L]) => `<option value="${k}"${!custom && k === C.look ? " selected" : ""}>${L.label}</option>`).join("");
   const selC = selPart && partColor(selPart);
@@ -786,16 +787,13 @@ function setPartColor(hex, commit = true) {
   if (commit) { if (!C.library.includes(c)) C.library.push(c); save(); renderPalette(); }
   applyColors();
 }
+// clicking a part opens the Colors step on that part; closing the step lets go of it
 function selectPart(p) {
   selPart = p && ROLE[p] ? p : null;
-  if (selPart) openPalette(true);
   paintEdges(); renderPalette();
+  if (selPart) { const st = $("#s7"); if (!st.open) st.open = true; requestAnimationFrame(() => $("#palSel").scrollIntoView({ block: "nearest", behavior: "smooth" })); }
 }
-function openPalette(open) {
-  $("#palette").hidden = !open; $("#colorsBtn").setAttribute("aria-expanded", String(open));
-  if (!open) { hoverParts = null; if (selPart) { selPart = null; renderPalette(); } paintEdges(); }
-}
-$("#colorsBtn").addEventListener("click", () => openPalette($("#palette").hidden));
+$("#s7").addEventListener("toggle", () => { if (!$("#s7").open) { hoverParts = null; if (selPart) selectPart(null); else paintEdges(); } });
 $("#lookSel").addEventListener("change", (e) => {
   if (!e.target.value) return;
   const C = colorsCfg(); C.look = e.target.value; C.parts = {};
@@ -822,7 +820,7 @@ $("#palClear").addEventListener("click", () => selectPart(null));
     const hit = ray.intersectObjects(root.children, true).find((h) => h.object.isMesh && h.object.userData.part);
     selectPart(hit ? hit.object.userData.part : null);
   });
-  addEventListener("keydown", (e) => { if (e.key !== "Escape" || document.querySelector("dialog[open]")) return; if (selPart) selectPart(null); else if (!$("#palette").hidden) openPalette(false); });
+  addEventListener("keydown", (e) => { if (e.key !== "Escape" || document.querySelector("dialog[open]")) return; if (selPart) selectPart(null); });
 }
 function renderStats() {
   const d = derive(cfg), depth = assembly(cfg).headDepth, ln = legNumbers();

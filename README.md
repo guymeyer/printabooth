@@ -24,7 +24,7 @@ Step 6 sets the nozzle (0.4, 0.6 or 0.8 mm, default 0.8) and material (PETG or P
 
 ## Colors
 
-The Colors button, next to the view tabs, opens the color panel. Pick a look from the dropdown (Studio, Graphite, Sage, Clay, Cobalt, Night). Under In use, each color is listed with what it covers and how many parts ("Shell · 4 parts"); change a color there and every part wearing it changes too. Hovering a row outlines its parts in the view. To give one part its own color, click it in the view and pick from the swatches or a new color; new colors join the library. Colors travel with saves and booth codes, and the README in the download lists which parts to print in which color.
+Step 7, Colors, previews filament colors. Pick a look from the dropdown (Studio, Graphite, Sage, Clay, Cobalt, Night). Under In use, each color is listed with what it covers and how many parts ("Shell · 4 parts"); change a color there and every part wearing it changes too. Hovering a row outlines its parts in the view. To give one part its own color, click it in the view and pick from the swatches or a new color; new colors join the library. Colors travel with saves and booth codes, and the README in the download lists which parts to print in which color.
 
 ## Export
 

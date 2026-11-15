@@ -205,17 +205,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .stat .k { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; text-transform: uppercase; }
 .stat .v { font: 500 15px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat .v small { font-size: 11px; color: var(--ink-3); }
-.vleft { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
-.vleft > * { pointer-events: auto; }
-.colors-btn { display: inline-flex; align-items: center; gap: 7px; height: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 0 11px; min-height: 37px; cursor: pointer; font-size: 13px; color: var(--ink-2);
-  background: color-mix(in srgb, var(--raised) 88%, transparent); backdrop-filter: blur(6px); }
-.colors-btn[aria-expanded="true"] { color: var(--ink); font-weight: 600; border-color: var(--line-2); background: var(--raised); }
 .pal-dots { display: inline-flex; }
 .pal-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--raised); margin-left: -4px; box-shadow: 0 0 0 1px var(--line-2); }
 .pal-dots i:first-child { margin-left: 0; }
-.palette { position: absolute; left: 12px; top: 60px; width: 260px; max-height: calc(100% - 140px); overflow: auto; border-radius: 12px; background: color-mix(in srgb, var(--raised) 94%, transparent); backdrop-filter: blur(8px);
-  border: 1px solid var(--line); box-shadow: 0 6px 20px rgb(0 0 0 / .08); font-size: 12.5px; color: var(--ink-2); z-index: 2; padding: 12px; display: grid; gap: 12px; }
-.palette[hidden], .pal-sel[hidden] { display: none; }
+.palette { font-size: 12.5px; color: var(--ink-2); }
+.pal-sel[hidden] { display: none; }
+.sum .pal-dots { margin-right: 7px; vertical-align: -1px; }
 .pal-k { display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
 .pal-look select { font-size: 13px; padding: 6px 8px; }
 .pal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -238,7 +233,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .sw.new { position: relative; overflow: hidden; background: conic-gradient(#e2513c, #ffc56b, #3f5e47, #2a49a8, #c0623e, #e2513c); }
 .sw.new input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
 .pal-hint { margin: 0; font-size: 11.5px; color: var(--ink-3); }
-@media (max-width: 860px) { .palette { top: auto; bottom: 12px; right: 12px; width: auto; max-height: 72%; z-index: 3; } }
 .loadmsg[hidden] { display: none; }
 .loadmsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 13px; pointer-events: none; }
 
@@ -516,7 +510,21 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
         </details>
 
         <details class="step" id="s7">
-          <summary><span class="num">7</span><span class="st"><h2>Export</h2><span class="sum" id="sum7">STL files in print orientation</span></span><span class="chev">▶</span></summary>
+          <summary><span class="num">7</span><span class="st"><h2>Colors</h2><span class="sum"><span class="pal-dots" id="palDots"></span><span id="sum7"></span></span></span><span class="chev">▶</span></summary>
+          <div class="body palette" id="palette">
+            <div class="field"><label for="lookSel">Look</label><select id="lookSel"></select></div>
+            <div class="field"><span class="lbl" id="palUsedK">In use</span><ul class="pal-list" id="palList" aria-labelledby="palUsedK"></ul></div>
+            <div class="pal-sel" id="palSel" hidden>
+              <div class="pal-part"><b id="palPart"></b><button type="button" class="pal-x" id="palClear" aria-label="Deselect part">&times;</button></div>
+              <span class="lbl">Just this part</span>
+              <div class="swatches" id="swatches" role="group" aria-label="Color for this part"></div>
+            </div>
+            <p class="hint" id="palHint">Change a color above to recolor its parts. Click a part in the view to give it its own color.</p>
+      </div>
+        </details>
+
+        <details class="step" id="s8">
+          <summary><span class="num">8</span><span class="st"><h2>Export</h2><span class="sum" id="sum8">STL files in print orientation</span></span><span class="chev">▶</span></summary>
           <div class="body">
             <div class="parts" id="parts"></div>
             <div class="export-row">
@@ -542,27 +550,14 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
       <div id="stage"></div>
       <div class="loadmsg" id="loadMsg">Loading the geometry kernel…</div>
       <div class="vtools">
-        <div class="vleft">
         <div class="seg" data-view role="group" aria-label="View">
           <button type="button" data-v="head" aria-pressed="true">Head</button>
           <button type="button" data-v="exploded">Exploded</button>
           <button type="button" data-v="kiosk">Full kiosk</button>
           <button type="button" data-v="back">Back</button>
         </div>
-        <button type="button" class="colors-btn" id="colorsBtn" aria-expanded="false" aria-controls="palette"><span class="pal-dots" id="palDots"></span>Colors</button>
-        </div>
         <span class="focus-pill" id="focusPill"><span id="focusName"></span><button type="button" id="focusClose">Show all</button></span>
         <span class="busy" id="busy" data-idle="false"><i></i><span id="busyText">Starting</span></span>
-      </div>
-      <div class="palette" id="palette" role="region" aria-label="Colors" hidden>
-        <label class="pal-look"><span class="pal-k">Look</span><select id="lookSel" aria-label="Color look"></select></label>
-        <div><span class="pal-k" id="palUsedK">In use</span><ul class="pal-list" id="palList" aria-labelledby="palUsedK"></ul></div>
-        <div class="pal-sel" id="palSel" hidden>
-          <div class="pal-part"><b id="palPart"></b><button type="button" class="pal-x" id="palClear" aria-label="Deselect part">&times;</button></div>
-          <span class="pal-k">Just this part</span>
-          <div class="swatches" id="swatches" role="group" aria-label="Color for this part"></div>
-        </div>
-        <p class="pal-hint" id="palHint">Change a color above to recolor its parts. Click a part in the view to give it its own color.</p>
       </div>
       <div class="stats" id="stats"></div>
     </section>
