@@ -12,6 +12,8 @@ const presets = {
   mini: () => { c.fitMode = 'hug'; c.tablet = { ...c.tablet, ...g.TABLETS['ipad-mini'], preset: 'ipad-mini' }; },
   pro: () => { c.fitMode = 'hug'; c.tablet = { ...c.tablet, ...g.TABLETS['ipad-pro-11'], preset: 'ipad-pro-11' }; },
   ledoff: () => { c.fitMode = 'hug'; c.led.on = false; },
+  adafruit: () => { c.fitMode = 'hug'; c.led.strip = 'adafruit'; Object.assign(c.led, g.ledFit(c, 'adafruit')); },
+  adafruitPro: () => { c.fitMode = 'hug'; c.tablet = { ...c.tablet, ...g.TABLETS['ipad-pro-11'], preset: 'ipad-pro-11' }; c.led.strip = 'adafruit'; Object.assign(c.led, g.ledFit(c, 'adafruit')); },
   wall: () => { c.fitMode = 'hug'; c.mount.type = 'wall'; },
   post: () => { c.fitMode = 'hug'; c.mount.type = 'post'; },
   postSolid: () => { c.fitMode = 'hug'; c.mount.type = 'post'; c.mount.pole = 'dowel15'; },

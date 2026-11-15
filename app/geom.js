@@ -9,7 +9,7 @@ export const DEFAULTS = {
   fitMode: "universal",            // "universal" = one square cassette size fits most; "hug" = shell sized to this tablet
   cass: { size: 270, t: 12, mask: 2, back: 2.4, overlap: 5, liner: 0.5, portGap: 9, portSide: "auto", bumpCorner: "pair" },
   shell: { cornerR: 33, frameD: 20, lip: 2, wall: 4, ringD: 50, ring1D: 85, nExt: 1, join: "glue" },   // join: "glue" | "screws"
-  led: { on: true, w: 6, depth: 5, skin: 3.5, diffT: 1.8, inlet: 36 },
+  led: { on: true, strip: "demas", w: 7, depth: 8, skin: 3.5, diffT: 1.8, inlet: 36 },   // strip: LED_STRIPS key (w and depth follow it)
   cap: { lock: "none" },          // "none" = slide-in, no cap; legacy: "screws" | "magnets" | "camlock"
   inserts: { type: "m3", screw: 3, hole: 4.2, len: 5.7 },
   back: { t: 8, mode: "threaded", d: 12, pitch: 1.75, clr: 0.4, grid: 25, cells: null },   // Thread Boards estimate: print the test coupon first
@@ -55,6 +55,35 @@ export function flangeSpec(c) {
 export const PLY = { t: 18, density: 600 };
 // wall plate keyholes: head enters the round hole, the case drops so the screw rides to the top of the slot
 export const KEY = { head: 10, slot: 4.6, len: 11, lip: 3 };
+
+// ---------------------------------------------------------------- LED strips
+// The halo is a U that turns two corners in the plane of the face, so the strip has to bend sideways while its LEDs face
+// forward. Zig-zag ("S-shape") strips do that lying flat; a side-light strip does it standing on its edge. Ordinary flat
+// or COB strips don't bend sideways and would need a cut and a jumper at each corner.
+// w: across the channel, h: into the channel (depth), cut: cut-mark spacing, W/m at full white, minR: tightest sideways bend
+export const LED_STRIPS = {
+  demas: { label: "DEMASLED Zig-Zag, 12 V white (UL listed)", kind: "White", volts: 12, w: 6, h: 2, cut: 50, perM: 60, wPerM: 6.2, minR: 12,
+    url: "https://www.amazon.com/dp/B06XWGTG53", url2: ["Warm white", "https://www.amazon.com/dp/B01N28PHC8"] },
+  btf: { label: "BTF-LIGHTING S-shape, 12 V addressable RGB", kind: "Addressable RGB", volts: 12, w: 6, h: 2, cut: 1000 / 60, perM: 60, wPerM: 14, minR: 12,
+    url: "https://btf-lighting.com/products/12v-ws2812b-s-shape-foldable-led-strip-light-for-diy-1m-60leds-6mm-pcb-individually-addressable-dream-color-5050-rgb-pixels-tap" },
+  topxcdz: { label: "TOPXCDZ 5 mm S-shape WS2812B, 5 V addressable RGB", kind: "Addressable RGB", volts: 5, w: 5, h: 2, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 12,
+    url: "https://www.amazon.com/dp/B09WQW1CPR" },
+  adafruit: { label: "Adafruit NeoPixel Side Light, 60 LED (on edge), 5 V", kind: "Addressable RGB", volts: 5, edge: true, w: 3, h: 8, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 10,
+    url: "https://www.adafruit.com/product/3636" },
+  custom: { label: "Custom: size the channel yourself" },
+};
+export const stripOf = (c) => { const s = LED_STRIPS[c.led && c.led.strip]; return s && c.led.strip !== "custom" ? s : null; };
+// channel for a strip: 0.5 mm each side; depth = diffuser + strip + an air gap that blends the LEDs (about a quarter of their spacing)
+export function ledFit(c, key) {
+  const s = LED_STRIPS[key]; if (!s || key === "custom") return null;
+  const air = s.edge ? 2.5 : Math.max(3, Math.min(5, 1000 / s.perM / 4));
+  let depth = Math.ceil((c.led.diffT + s.h + air) * 2) / 2;
+  // keep the channel floor clear of the frame's split at the back of the slot (no paper-thin step in ring 1): stop short of
+  // it if the strip still fits, otherwise go a clear 1.5 mm past it
+  const split = derive({ ...c, led: { ...c.led, on: false } }).chZ1, min = c.led.diffT + s.h + 1;
+  if (depth > split - 0.8 && depth < split + 1.5) depth = Math.floor((split - 0.8) * 2) / 2 >= min ? Math.floor((split - 0.8) * 2) / 2 : Math.ceil((split + 1.5) * 2) / 2;
+  return { w: Math.ceil((s.w + 1) * 2) / 2, depth };
+}
 
 // ---------------------------------------------------------------- USB-C dock
 // head sizes are typical caliper measurements, not published specs: measure yours and use Custom if it differs
@@ -343,7 +372,10 @@ export function derive(c) {
       const ro = ri + ledW, lc = ro - ledW / 2;                            // centreline corner radius
       const loop = 4 * (lx + ly) - 8 * lc + 2 * Math.PI * lc;
       const U = loop - (2 * (lx - lc) + Math.PI * lc + 2 * Math.max(0, (ly - lc) - yEnd));
-      return { perimeter: U, strip: (U - c.led.inlet) / 2 - 3, strips: 2, lit: U - c.led.inlet, straightBottom: 2 * (lx - lc), yEnd, ro };
+      const strip = (U - c.led.inlet) / 2 - 3, S = stripOf(c);
+      const cutLen = S ? Math.floor(strip / S.cut + 1e-6) * S.cut : strip;
+      return { perimeter: U, strip, cutLen, segs: S ? Math.round(cutLen / S.cut) : 0, leds: S ? Math.round((cutLen / 1000) * S.perM) : 0,
+        strips: 2, lit: U - c.led.inlet, straightBottom: 2 * (lx - lc), yEnd, ro, lc };
     })(),
   };
 }
@@ -423,6 +455,15 @@ export function validate(c) {
     else if (g < 2.5) add("warn", "Less than 2.5 mm of wall between the LED channel and the cassette slot.", fixG);
     if (c.led.skin < 3) add("warn", "The outer wall beside the LED channel is under 3 mm.", fx("Set outer wall to 3 mm", ["led.skin", 3]));
     if (d.ledW < c.led.w - 0.05) add("warn", `With a ${d.plan.nozzle} mm nozzle the channel narrows to ${d.ledW.toFixed(2)} mm so the wall beside the slot stays 2 lines thick.`, fx("Narrow the outer wall to 3 mm", ["led.skin", 3]));
+    const S = stripOf(c), fit = S && ledFit(c, c.led.strip);
+    if (S) {
+      const fixFit = fx(`Size the channel for this strip (${fit.w} × ${fit.depth} mm)`, ["led.w", fit.w], ["led.depth", fit.depth]);
+      if (d.ledW < S.w + 0.4) add("error", `The channel is narrower than the ${S.w} mm strip.`, fixFit);
+      if (d.ledDepth < c.led.diffT + S.h + 1) add("error", "The channel is too shallow for the strip and the diffuser.", fixFit);
+      else if (d.ledDepth < fit.depth - 0.6) add("warn", "Little air between the strip and the diffuser, so the LEDs may show as dots.", fixFit);
+      if (d.led.lc < S.minR) add("warn", `The channel's corners bend the strip tighter (${d.led.lc.toFixed(0)} mm) than it likes (${S.minR} mm).`,
+        fx(`Round the corners to ${Math.ceil(c.shell.cornerR + S.minR - d.led.lc)} mm`, ["shell.cornerR", Math.ceil(c.shell.cornerR + S.minR - d.led.lc)]));
+    }
     if (c.led.inlet > d.led.straightBottom - 10) {
       const L = Math.max(10, Math.floor(d.led.straightBottom - 10));
       add("error", "The wire inlet cover is longer than the straight bottom run of the channel.", fx(`Shorten the cover to ${L} mm`, ["led.inlet", L]));

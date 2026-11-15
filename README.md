@@ -8,7 +8,7 @@ A browser configurator for a 3D-printed, modular iPad photo booth. Pick the tabl
 
 - **Cassette:** the iPad lies in a tray (hugged to the tablet, or a one-size-fits-most cassette) that slides into the shell from the top. A finger scoop and a grip ridge lift it back out. The cassette's top band wraps the upper corners as a contrasting accent color.
 - **Shell:** a rounded rectangle built from a front frame, a main shell (ring 1) and any number of extension rings, glued with lap joints. A 2 mm front lip holds the iPad by its glass border; the camera notch never shows the iPad's metal edge.
-- **LED halo:** a U-shaped front channel around the sides and bottom, with a translucent diffuser.
+- **LED halo:** a U-shaped front channel around the sides and bottom, with a translucent diffuser. The strip has to bend sideways round the two bottom corners with its LEDs facing forward, so the page offers strips that do: zig-zag (S-shape) strips from DEMASLED (12 V white), BTF-LIGHTING (12 V RGB) and TOPXCDZ (5 V RGB) lying flat, or Adafruit's NeoPixel side-light strip standing on its edge. Picking one sizes the channel, gives the cut length in LEDs at the strip's cut marks, and the power supply.
 - **Back panel:** Thread Boards-style threaded holes, laid out in the page's grid editor.
 - **Mount:** three choices.
   - **Tripod:** a drum centred under the head, with three wood-dowel legs that thread in through printed ferrules on 45-degree self-centring seats.

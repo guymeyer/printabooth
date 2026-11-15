@@ -1,7 +1,7 @@
 import * as THREE from "./three.module.js";
 import { OrbitControls } from "./OrbitControls.js";
 import { toCreasedNormals } from "./BufferGeometryUtils.js";
-import { DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive, mountOf, poleOf, postSpec, flangeSpec, POST, FLANGE, PLY, KEY, DOCK_PLUGS, plugOf } from "./geom.js";
+import { DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive, mountOf, LED_STRIPS, stripOf, ledFit, poleOf, postSpec, flangeSpec, POST, FLANGE, PLY, KEY, DOCK_PLUGS, plugOf } from "./geom.js";
 import { howtoBody, howtoPage, HOWTO_CSS } from "./howto.js";
 import { PRINTERS } from "./pack3mf.js";
 import { printSettings, applyConfig, presetKey } from "./printsettings.js";
@@ -17,7 +17,9 @@ function merge(base, over) {
   return base;
 }
 let cfg = clone(DEFAULTS);
-try { const s = localStorage.getItem(STORE); if (s) cfg = merge(clone(DEFAULTS), JSON.parse(s)); } catch (e) {}
+// settings saved before the LED strip choice existed keep their own channel size (Custom)
+const fromSaved = (o) => { const c2 = merge(clone(DEFAULTS), o); if (o && o.led && !("strip" in o.led)) c2.led.strip = "custom"; return c2; };
+try { const s = localStorage.getItem(STORE); if (s) cfg = fromSaved(JSON.parse(s)); } catch (e) {}
 // migrate settings saved by earlier versions: the cap is gone (slide-in only), and the LED channel now sets the lip depth
 cfg.cap.lock = "none"; if ((cfg.cass.bumpCorner || "auto") === "auto") cfg.cass.bumpCorner = "pair"; if (cfg.shell.lip === 3) cfg.shell.lip = DEFAULTS.shell.lip; if (cfg.shell.cornerR === 44) cfg.shell.cornerR = DEFAULTS.shell.cornerR; cfg.legs.style = "puck";
 if (cfg.led.depth === 10) cfg.led.depth = DEFAULTS.led.depth;
@@ -412,17 +414,25 @@ function syncControls() {
 
   if (cfg.led.on) {
     const L = d.led;
-    $("#ledOut").innerHTML = `<dt>${L.strips > 1 ? `Cut ${L.strips} strips, each` : "Cut your strip to"}</dt><dd class="big">${L.strip.toFixed(0)} mm · ${(L.strip / 25.4).toFixed(1)}″</dd>
+    const S = stripOf(cfg);
+    const watts = S ? (S.wPerM * L.strips * L.cutLen) / 1000 : 0, amps = S ? Math.max(1, Math.ceil((watts / S.volts) * 1.25)) : 0;
+    $("#ledOut").innerHTML = (S ? `<dt>Cut ${L.strips} strips, each</dt><dd class="big">${L.leds} LEDs · ${L.cutLen.toFixed(0)} mm</dd>
+      <dt>Cut marks every</dt><dd>${S.cut.toFixed(S.cut % 1 ? 1 : 0)} mm (${Math.round((S.cut * S.perM) / 1000)} LED${Math.round((S.cut * S.perM) / 1000) > 1 ? "s" : ""})</dd>
+      <dt>Power, full brightness</dt><dd>${watts.toFixed(1)} W · ${S.volts} V ${amps} A supply</dd>`
+      : `<dt>${L.strips > 1 ? `Cut ${L.strips} strips, each` : "Cut your strip to"}</dt><dd class="big">${L.strip.toFixed(0)} mm · ${(L.strip / 25.4).toFixed(1)}″</dd>`) + `
       <dt>Channel centerline, shoulder to shoulder</dt><dd>${L.perimeter.toFixed(0)} mm</dd>
       <dt>Visible lit length</dt><dd>${L.lit.toFixed(0)} mm</dd>
       <dt>Glass behind the front face</dt><dd>${d.tabletZ.toFixed(1)} mm</dd>`;
+    const Sk = LED_STRIPS[cfg.led.strip] || LED_STRIPS.custom;
+    $("#ledLinks").innerHTML = Sk.url ? `<a href="${Sk.url}" target="_blank" rel="noopener">Get it ↗</a>${Sk.url2 ? ` · <a href="${Sk.url2[1]}" target="_blank" rel="noopener">${Sk.url2[0]} ↗</a>` : ""}` : "";
+    $("#ledStripHint").textContent = S ? `${S.kind}, ${S.volts} V, ${S.w} mm ${S.edge ? "thick, 8 mm tall: stand it on its edge, LEDs facing out of the channel, with a dab of hot glue every 10 cm" : "wide: lay it flat, LEDs forward, on its adhesive"}. Sizes are the listing's (or typical for the type), so check yours before printing.` : "Set the width to your strip plus 1 mm, and the depth to the diffuser, the strip and a few mm of air.";
   }
   $("#holeFields").hidden = cfg.back.mode === "none";
   const depth = assembly(cfg).headDepth;
   $("#depthOut").textContent = `${depth.toFixed(0)} mm deep`;
   $("#sum1").textContent = `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation}${cfg.fitMode === "hug" ? ", hugged" : ""}`;
   $("#sum2").textContent = `${cfg.shell.nExt} extension ring${cfg.shell.nExt === 1 ? "" : "s"} · ${depth.toFixed(0)} mm deep`;
-  $("#sum3").textContent = cfg.led.on ? `${cfg.led.w} × ${cfg.led.depth} mm channel · ${d.led.strips > 1 ? d.led.strips + " × " : ""}${(d.led.strip / 25.4).toFixed(1)}″ strip` : "Off";
+  $("#sum3").textContent = cfg.led.on ? (stripOf(cfg) ? `${(LED_STRIPS[cfg.led.strip].label.split(",")[0])} · ${d.led.strips} × ${d.led.leds} LEDs` : `${cfg.led.w} × ${cfg.led.depth} mm channel · ${d.led.strips > 1 ? d.led.strips + " × " : ""}${(d.led.strip / 25.4).toFixed(1)}″ strip`) : "Off";
   $("#sum2").textContent += " · slide-in";
   const n = holes ? holes.all.filter((h) => isOn(h)).length : 0;
   $("#sum4").textContent = cfg.back.mode === "none" ? "Solid" : `${n} ${cfg.back.mode} holes on a ${cfg.back.grid} mm grid`;
@@ -512,7 +522,9 @@ for (const el of $$("input[data-path], select[data-path]")) {
     let v = el.type === "checkbox" ? el.checked : el.value;
     if (el.type === "number" || el.type === "range" || el.dataset.num) { v = parseFloat(v); if (!isFinite(v)) return; }
     if (p.startsWith("tablet.")) cfg.tablet.preset = "custom";
-    set(p, v); changed(el.type === "range" ? 260 : 120);
+    set(p, v);
+    if (p === "led.strip") { const f = ledFit(cfg, v); if (f) { cfg.led.w = f.w; cfg.led.depth = f.depth; } }   // a strip sizes its channel
+    changed(el.type === "range" ? 260 : 120);
   });
 }
 for (const seg of $$(".seg[data-path]")) seg.addEventListener("click", (e) => {
@@ -820,7 +832,9 @@ function readme(sizes, projNotes = []) {
   if (dk) lines.push(`  USB-C dock: ${(DOCK_PLUGS[cfg.dock.brand] || DOCK_PLUGS.custom).label}${DOCK_PLUGS[cfg.dock.brand] && DOCK_PLUGS[cfg.dock.brand].url ? " - " + DOCK_PLUGS[cfg.dock.brand].url : ""}`,
     `       plug head ${dk.w} x ${dk.t} x ${dk.len} mm, cable ${dk.cable} mm (measure yours). 2 x M3 x 8 button head + 2 x M3 x 4 short heat-set inserts, 1 small zip tie`);
   else lines.push(`  Right-angle USB-C cable (${mt === "wall" ? "leaves through the notch in the bottom, or the hole in the wall plate" : mt === "post" ? (postSpec(cfg).hollow ? "runs down inside the pole" : "drops beside the pole; clip it to the back") : "routes down through the base"})`);
-  if (cfg.led.on) lines.push(`  LED strip up to ${cfg.led.w - 1} mm wide. ${d.led.strips > 1 ? `Cut ${d.led.strips} pieces, each` : "Cut to"} ${d.led.strip.toFixed(0)} mm (${(d.led.strip / 25.4).toFixed(1)}"), at the nearest cut mark below that${d.led.strips > 1 ? ". Each starts under the bottom inlet cover and runs around the bottom corner and up one side to its shoulder; wire them in parallel at the inlet" : ""}`);
+  if (cfg.led.on && stripOf(cfg)) { const S = stripOf(cfg), L = d.led;
+    lines.push(`  LED strip: ${S.label} - ${S.url}`, `       cut 2 pieces of ${L.leds} LEDs (${L.cutLen.toFixed(0)} mm) at the cut marks; each starts under the bottom inlet cover and runs round the bottom corner and up one side${S.edge ? ", standing on its edge with the LEDs facing out" : ", flat, LEDs forward"}. Wire them in parallel at the inlet. ${S.volts} V supply, ${Math.max(1, Math.ceil(((S.wPerM * 2 * L.cutLen) / 1000 / S.volts) * 1.25))} A.`); }
+  else if (cfg.led.on) lines.push(`  LED strip up to ${cfg.led.w - 1} mm wide. ${d.led.strips > 1 ? `Cut ${d.led.strips} pieces, each` : "Cut to"} ${d.led.strip.toFixed(0)} mm (${(d.led.strip / 25.4).toFixed(1)}"), at the nearest cut mark below that${d.led.strips > 1 ? ". Each starts under the bottom inlet cover and runs around the bottom corner and up one side to its shoulder; wire them in parallel at the inlet" : ""}`);
   if (cfg.back.mode !== "none" && mt !== "wall") lines.push(`  Back: ${holes.all.filter(isOn).length} ${cfg.back.mode} holes, ${cfg.back.d} mm x ${cfg.back.pitch} pitch on a ${cfg.back.grid} mm grid (an estimate of Thread Boards' 12 mm thread: print the test coupon first)`);
   lines.push("", "ASSEMBLY (the pictures are in instructions.html)");
   const A = [];
@@ -919,7 +933,7 @@ async function decodeCode(code) {
 function restore(obj, how) {
   const { code, ...rest } = obj || {};
   if (!rest.tablet || !rest.shell) throw new Error("No booth settings in that file.");
-  cfg = merge(clone(DEFAULTS), rest); focus = null; acked.clear(); printChanges = [];
+  cfg = fromSaved(rest); focus = null; acked.clear(); printChanges = [];
   changed(0);
   $("#codeMsg").textContent = `Restored ${how}: ${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation}, ${mountOf(cfg)}.`;
 }
@@ -947,7 +961,7 @@ function howtoInfo() {
   const pn = mt === "post" ? postNumbers() : null, w = mt === "wall" ? wallNumbers() : null;
   return {
     title: "Booth", subtitle: `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation} · ${mt} · ${cfg.print.nozzle} mm ${cfg.print.material}`,
-    mount: mt, dock: !!d.dock, led: cfg.led.on, nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
+    mount: mt, dock: !!d.dock, led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
     backHoles: mt !== "wall" && cfg.back.mode !== "none", liner: cfg.cass.liner,
     legCut: ln ? `${(ln.cut / 25.4).toFixed(1)}″` : "", poleCut: pn ? `${pn.pole} mm` : "", base: pn ? `${pn.B} mm` : "", layers: pn ? pn.layers : 0,
     keySpan: w ? w.span : 0, keyHeight: w ? `${(w.lockH / 25.4).toFixed(1)}″ up` : "",

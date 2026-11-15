@@ -359,13 +359,17 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
           <div class="body">
             <label class="toggle" for="ledOn">LED halo channel <span class="switch"><input type="checkbox" id="ledOn" data-path="led.on"><span></span></span></label>
             <div id="ledFields" style="display:grid;gap:14px">
-              <div class="field"><label for="ledW">Channel width <output data-for="led.w"></output></label><input id="ledW" type="range" min="4" max="16" step="0.5" data-path="led.w"></div>
-              <div class="field"><label for="ledD">Channel depth <output data-for="led.depth"></output></label><input id="ledD" type="range" min="3" max="12" step="0.5" data-path="led.depth"></div>
+              <div class="field"><label for="ledStrip">LED strip</label>
+                <select id="ledStrip" data-path="led.strip"><option value="demas">DEMASLED Zig-Zag, 12 V white (UL listed)</option><option value="btf">BTF-LIGHTING S-shape, 12 V addressable RGB</option><option value="topxcdz">TOPXCDZ 5 mm S-shape WS2812B, 5 V RGB</option><option value="adafruit">Adafruit NeoPixel Side Light, 60 LED, on edge</option><option value="custom">Custom: size the channel yourself</option></select>
+                <span class="hint" id="ledLinks"></span></div>
+              <div class="field"><label for="ledW">Channel width <output data-for="led.w"></output></label><input id="ledW" type="range" min="3" max="16" step="0.5" data-path="led.w"></div>
+              <div class="field"><label for="ledD">Channel depth <output data-for="led.depth"></output></label><input id="ledD" type="range" min="3" max="14" step="0.5" data-path="led.depth"></div>
               <div class="field"><label for="ledS">Outer wall <output data-for="led.skin"></output></label><input id="ledS" type="range" min="2" max="12" step="0.5" data-path="led.skin"></div>
               <div class="field"><label for="ledT">Diffuser thickness <output data-for="led.diffT"></output></label><input id="ledT" type="range" min="1" max="3" step="0.2" data-path="led.diffT"></div>
               <div class="field"><label for="ledI">Wire inlet cover <output data-for="led.inlet"></output></label><input id="ledI" type="range" min="20" max="70" step="2" data-path="led.inlet"></div>
               <dl class="readout" id="ledOut"></dl>
-              <p class="hint">Match the width to your strip plus 1 mm; the 6 mm default takes a 5 mm COB strip. Depth is the air gap that softens hotspots. The channel is a U around the sides and bottom of the face and stops at the shoulders, under the cassette's accent band, so it never crosses the cassette slot and the front lip stays 2 mm thin. Two strips start under the solid bottom cover, where their leads drop into a pocket that opens into the box, and run up each side.</p>
+              <p class="hint" id="ledStripHint"></p>
+              <p class="hint">The strip turns two corners in the plane of the face, so it has to bend sideways with its LEDs facing forward: a zig-zag (S-shape) strip lying flat, or a side-light strip standing on its edge. Ordinary flat and COB strips only bend the other way; with those, cut at each corner and solder a short jumper. Picking a strip sizes the channel for it: 0.5 mm each side, and enough depth for the diffuser plus an air gap that blends the LEDs into a line. The channel is a U around the sides and bottom of the face and stops at the shoulders, under the cassette's accent band, so it never crosses the cassette slot and the front lip stays 2 mm thin. Two strips start under the solid bottom cover, where their leads drop into a pocket that opens into the box, and run up each side.</p>
             </div>
           </div>
         </details>
