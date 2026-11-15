@@ -56,7 +56,8 @@ export function printSettings(c, base) {
     ring1: { perimeters: perimetersFor([...ringWalls, d.cradle], P.ew) },
     ringExt: { perimeters: perimetersFor(ringWalls, P.ew) },
     back: { perimeters: perimetersFor([P.sock], P.ew) },
-    cassette: c.fitMode === "hug" ? {} : { support_material: 1, support_material_auto: 1 },
+    cassette: c.fitMode === "universal" ? { support_material: 1, support_material_auto: 1 } : {},
+    topKey: { perimeters: 3 },
     diffuser: { perimeters: 2, fill_density: "100%", brim_width: 2 },
     hub: { perimeters: 5, fill_density: "40%", fill_pattern: "gyroid" },
     ferrule: { perimeters: 6, fill_density: "100%", brim_width: 5 },
@@ -101,7 +102,7 @@ export function printSettings(c, base) {
     ["Front frame", "Front face down on the sheet (the visible face gets the sheet's finish); seam groove at the back of the bed"],
     [mt === "wall" ? "Wall case" : "Rings", "Upright, front edge down: every visible face is a wall; underside (seam groove) toward the back of the bed"],
     [mt === "wall" ? "Wall plate" : "Back panel", mt === "wall" ? "Wall face down (keyhole pockets open upward)" : "Outer face down on the sheet"],
-    ["Cassette", d.hug ? "Back down" : "Face down, supports under the back ledge"],
+    d.direct ? ["Top key", "Face down"] : ["Cassette", d.hug ? "Back down" : "Face down, supports under the back ledge"],
     ...(mt === "tripod" ? [["Diffuser / base / ferrules", "Flat / top face down / stud down"]] : mt === "post" ? [["Diffuser / post cap / floor flange", "Flat / disc down / disc down"]] : [["Diffuser", "Flat"]]),
     ...(d.dock ? [["Dock clip", "Back down, open side up"]] : []),
   ];
