@@ -9,7 +9,9 @@ export const DEFAULTS = {
   fitMode: "universal",            // "universal" = one square cassette size fits most; "hug" = shell sized to this tablet
   cass: { size: 270, t: 12, mask: 2, back: 2.4, overlap: 5, liner: 0.5, portGap: 9, portSide: "auto", bumpCorner: "pair" },
   shell: { cornerR: 33, frameD: 20, lip: 2, wall: 4, ringD: 50, ring1D: 85, nExt: 1, join: "glue" },   // join: "glue" | "screws"
-  led: { on: true, strip: "demas", w: 7, depth: 8, skin: 3.5, diffT: 1.8, inlet: 36 },   // strip: LED_STRIPS key (w and depth follow it)
+  // one continuous strip: starts at the top of the feed side (its lead goes straight back into the box), runs down, across the
+  // bottom and up the other side. strip: LED_STRIPS key (w and depth follow it)
+  led: { on: true, strip: "topxcdz", feed: "left", w: 6, depth: 8, skin: 3.5, diffT: 1.8 },
   cap: { lock: "none" },          // "none" = slide-in, no cap; legacy: "screws" | "magnets" | "camlock"
   inserts: { type: "m3", screw: 3, hole: 4.2, len: 5.7 },
   back: { t: 8, mode: "threaded", d: 12, pitch: 1.75, clr: 0.4, grid: 25, cells: null },   // Thread Boards estimate: print the test coupon first
@@ -44,8 +46,15 @@ export function postSpec(c) {
   const depth = Math.max(POST.minDepth, Math.ceil(p.od * 1.6));
   return { ...p, rB, rS, depth, R: Math.max(rS + 14, 56), H: POST.disc + depth };
 }
-export const cableX = (c) => (mountOf(c) === "post" && !postSpec(c).hollow ? Math.ceil(postSpec(c).rS + 9) : 0);
-// floor flange that screws to the wood base: disc with four countersunk wood screws and a collar for the pole's foot
+// where the LED feed slot can run behind the channel (|x|): two lines of wall to the cassette slot and to ring 1's glue socket
+// (plus its 0.4 mm mouth relief)
+export function feedRoom(d) {
+  const m = 2 * d.plan.ew, cx = Math.abs(d.led.feedX);
+  return { lo: Math.max(cx - d.ledW / 2, d.chW / 2 + m), hi: Math.min(cx + d.ledW / 2, d.innerX + Math.min(d.lapA - LAP.clr, -LAP.clr) - 0.4 - m) };
+}
+export const cableX = (c) => (mountOf(c) === "post" && !postSpec(c).hollow ? Math.ceil(postSpec(c).rS + 13) : 0);
+// floor flange that screws to the wood base: disc with four countersunk wood screws and a collar for the pole's foot; a hollow
+// pole's cables drop through its floor into a hole drilled through the base
 export const FLANGE = { disc: 6, collar: 40, wall: 5, floor: 3, reach: 22 };
 export function flangeSpec(c) {
   const S = postSpec(c), rC = S.rB + FLANGE.wall;
@@ -63,12 +72,16 @@ export const KEY = { head: 10, slot: 4.6, len: 11, lip: 3 };
 // w: across the channel, h: into the channel (depth), cut: cut-mark spacing, W/m at full white, minR: tightest sideways bend
 export const LED_STRIPS = {
   demas: { label: "DEMASLED Zig-Zag, 12 V white (UL listed)", kind: "White", volts: 12, w: 6, h: 2, cut: 50, perM: 60, wPerM: 6.2, minR: 12,
+    power: "USB-C charger (PD) and a USB-C to 12 V DC trigger cable. Plug-in if your strip has a DC jack lead; otherwise solder its lead on.", usb: false,
     url: "https://www.amazon.com/dp/B06XWGTG53", url2: ["Warm white", "https://www.amazon.com/dp/B01N28PHC8"] },
   btf: { label: "BTF-LIGHTING S-shape, 12 V addressable RGB", kind: "Addressable RGB", volts: 12, w: 6, h: 2, cut: 1000 / 60, perM: 60, wPerM: 14, minR: 12,
+    power: "A 12 V addressable controller and a 12 V supply (some wiring).", usb: false,
     url: "https://btf-lighting.com/products/12v-ws2812b-s-shape-foldable-led-strip-light-for-diy-1m-60leds-6mm-pcb-individually-addressable-dream-color-5050-rgb-pixels-tap" },
-  topxcdz: { label: "TOPXCDZ 5 mm S-shape WS2812B, 5 V addressable RGB", kind: "Addressable RGB", volts: 5, w: 5, h: 2, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 12,
+  topxcdz: { label: "TOPXCDZ 5 mm S-shape WS2812B, 5 V RGB (USB, no soldering)", kind: "Addressable RGB", volts: 5, w: 5, h: 2, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 12,
+    power: "A USB controller for WS2812B strips with a 3-pin JST-SM plug: it plugs into the strip's own connector and any USB charger. Keep that connector end; cut the far end.", usb: true,
     url: "https://www.amazon.com/dp/B09WQW1CPR" },
   adafruit: { label: "Adafruit NeoPixel Side Light, 60 LED (on edge), 5 V", kind: "Addressable RGB", volts: 5, edge: true, w: 3, h: 8, cut: 1000 / 60, perM: 60, wPerM: 18, minR: 10,
+    power: "A 5 V NeoPixel controller or microcontroller; solder a lead to the strip's start.", usb: false,
     url: "https://www.adafruit.com/product/3636" },
   custom: { label: "Custom: size the channel yourself" },
 };
@@ -100,7 +113,7 @@ export function plugOf(c) {
 // clip: U around the plug head (open at the front, the frame lip closes it), a floor the head sits on with a slot for the
 // cable, and two ears screwed down onto the slot floor (M3 x 8 into M3 x 4 heat-set inserts); a zip tie under the floor stops
 // the plug pulling up when the cassette lifts out
-export const DOCK = { gap: 0.5, floor: 2, wall: 1.6, clr: 0.15, earW: 7, earH: 3, insHole: 4.0, insD: 5.0, head: 2.2 };
+export const DOCK = { gap: 0.5, floor: 2, wall: 1.6, clr: 0.15, earW: 7, earH: 3, insHole: 4.0, insD: 5.0, head: 2.2, bend: 8 };
 
 // ---------------------------------------------------------------- print plan (nozzle-driven)
 // Walls, ribs and lips of the shell parts (frame, rings, back panel) snap to whole extrusion widths (at least 2) so they print as
@@ -260,8 +273,9 @@ export function derive(c) {
     // top/bottom must leave room for the finger scoop above the cassette when there's no cap
     let sideY = (c.cap.lock || "none") === "none" ? Math.max(side, DISH.depth + 2.5) : side;
     // dock: the clip's inserts need solid wall under the slot floor, above the LED wire pocket
+    // and, with the channel running under it, room above the channel for the cable to turn back (DOCK.bend)
     if (dockOn && c.led.on) { const sk = P.ledSkin, gn = side - c.led.w - sk, gp = gn / P.ew > 8 ? gn : r3(P.n(gn, "floor") * P.ew);
-      sideY = Math.max(sideY, Math.ceil((side - gp) + DOCK.insD + 0.6)); }
+      sideY = Math.max(sideY, Math.ceil((side - gp) + DOCK.bend + 1.2)); }
     Sx = chW / 2 + side; Sy = chH / 2 + sideY;
   } else { Sx = (Cw + 36) / 2; Sy = (Ch + 36) / 2; }
   const Sw = 2 * Sx, Sh = 2 * Sy;
@@ -360,7 +374,7 @@ export function derive(c) {
     })() : null,
     plan: P, wall: P.wall, lapT: P.lapT, lapA: P.lapA, backT: P.backT, cradle: P.cradle, ledDepth: P.ledDepth, ledSkin, ledW, ledGap,
     led: (() => {
-      // U from shoulder to shoulder; two strips start under the bottom inlet cover and run up each side
+      // U from shoulder to shoulder, lit end to end by one strip fed from the top of one side
       const yEnd = (capless ? yS : Sy - R) - 1.5;
       // corner radius of the channel: as round as the shell's, but tightened where needed so the wall between the channel
       // and the cassette slot's (tighter) corner stays as thick as along the straight sides
@@ -372,10 +386,11 @@ export function derive(c) {
       const ro = ri + ledW, lc = ro - ledW / 2;                            // centreline corner radius
       const loop = 4 * (lx + ly) - 8 * lc + 2 * Math.PI * lc;
       const U = loop - (2 * (lx - lc) + Math.PI * lc + 2 * Math.max(0, (ly - lc) - yEnd));
-      const strip = (U - c.led.inlet) / 2 - 3, S = stripOf(c);
+      const strip = U - 4, S = stripOf(c);                                   // 2 mm clear at each end
       const cutLen = S ? Math.floor(strip / S.cut + 1e-6) * S.cut : strip;
+      const feedX = (c.led.feed === "right" ? -1 : 1) * (Sx - ledSkin - ledW / 2);   // viewer's left is +x
       return { perimeter: U, strip, cutLen, segs: S ? Math.round(cutLen / S.cut) : 0, leds: S ? Math.round((cutLen / 1000) * S.perM) : 0,
-        strips: 2, lit: U - c.led.inlet, straightBottom: 2 * (lx - lc), yEnd, ro, lc };
+        strips: 1, lit: U, yEnd, ro, lc, feedX, reel: Math.ceil(strip / 1000 - 1e-6) };
     })(),
   };
 }
@@ -388,7 +403,8 @@ export const BASE = { H: 26, rc: 8, drop: 50, hh: 1.0, bendK: 0.5, tS: 10, kTube
 const legThread = (c) => Math.round(Math.max(22, Math.min(32, c.legs.dowel * 0.8)) * 2) / 2;
 // Braun-style base: one plain drum (cylinder, small chamfers) centred under the head. The three leg sockets are bored into
 // its flat underside at the splay angle, each with a counterbore square to the leg so the ferrule's shoulder seats flat.
-export const PUCK = { wall: 3.5, top: 5, ch: 1.5, cable: 12, relief: 6 };
+export // USB-A plugs (about 16 x 8 mm) pass the cable holes, so the LED's USB lead and the iPad's cable both route down through the base
+const PUCK = { wall: 3.5, top: 5, ch: 1.5, cable: 22, relief: 6 };
 function puckSpec(c) {
   const th = (c.legs.splay * Math.PI) / 180, s = Math.sin(th), co = Math.cos(th);
   const tr = legThread(c) / 2 + c.legs.threadClr / 2;                 // threaded bore radius
@@ -455,6 +471,8 @@ export function validate(c) {
     else if (g < 2.5) add("warn", "Less than 2.5 mm of wall between the LED channel and the cassette slot.", fixG);
     if (c.led.skin < 3) add("warn", "The outer wall beside the LED channel is under 3 mm.", fx("Set outer wall to 3 mm", ["led.skin", 3]));
     if (d.ledW < c.led.w - 0.05) add("warn", `With a ${d.plan.nozzle} mm nozzle the channel narrows to ${d.ledW.toFixed(2)} mm so the wall beside the slot stays 2 lines thick.`, fx("Narrow the outer wall to 3 mm", ["led.skin", 3]));
+    { const r = feedRoom(d), room = r.hi - r.lo;
+      if (room < 1.8) add("warn", `Only ${Math.max(0, room).toFixed(1)} mm for the strip's lead to pass back into the box. Widen the channel or the outer wall.`, fx(`Set outer wall to ${half(c.led.skin + 1)} mm`, ["led.skin", half(c.led.skin + 1)])); }
     const S = stripOf(c), fit = S && ledFit(c, c.led.strip);
     if (S) {
       const fixFit = fx(`Size the channel for this strip (${fit.w} × ${fit.depth} mm)`, ["led.w", fit.w], ["led.depth", fit.depth]);
@@ -463,10 +481,6 @@ export function validate(c) {
       else if (d.ledDepth < fit.depth - 0.6) add("warn", "Little air between the strip and the diffuser, so the LEDs may show as dots.", fixFit);
       if (d.led.lc < S.minR) add("warn", `The channel's corners bend the strip tighter (${d.led.lc.toFixed(0)} mm) than it likes (${S.minR} mm).`,
         fx(`Round the corners to ${Math.ceil(c.shell.cornerR + S.minR - d.led.lc)} mm`, ["shell.cornerR", Math.ceil(c.shell.cornerR + S.minR - d.led.lc)]));
-    }
-    if (c.led.inlet > d.led.straightBottom - 10) {
-      const L = Math.max(10, Math.floor(d.led.straightBottom - 10));
-      add("error", "The wire inlet cover is longer than the straight bottom run of the channel.", fx(`Shorten the cover to ${L} mm`, ["led.inlet", L]));
     }
   }
   const I = insertSpec(c);
@@ -715,7 +729,14 @@ export function makeEngine(wasm) {
     const ro = Math.max(2, d.led.ro + extra), ri = Math.max(1, ro - d.ledW - 2 * extra);
     return sub(rr(2 * ox, 2 * oy, ro, z0, z1), rr(2 * ix, 2 * iy, ri, z0 - 1, z1 + 1));
   }
-  const coverT = (c) => Math.min(3, derive(c).ledDepth - 3);
+  // the strip's lead leaves the channel's top end on the feed side through a slot straight back into the box. It's open to
+  // the channel, so the cable presses in from the front; the plug never has to pass through the frame.
+  // Behind the channel it keeps two lines of wall to the cassette slot and to ring 1's glue socket; up to 5 mm wide.
+  function ledFeed(c, d) {
+    const sg = Math.sign(d.led.feedX);
+    const { lo, hi } = feedRoom(d), mid = (lo + hi) / 2, hw = Math.min(2.5, (hi - lo) / 2);
+    return box(sg * (mid - hw * sg), sg * (mid + hw * sg), d.led.yEnd - 14, d.led.yEnd, d.ledDepth - 0.01, d.fd + 1);
+  }
 
   // ------------------------------------------------------------ front frame
   // glued shells split the frame at the back of the cassette slot so neither piece overhangs:
@@ -729,9 +750,7 @@ export function makeEngine(wasm) {
     const tongue = d.capless
       ? sub(lapTongue(d, c, chZ1 - 0.05), box(-BIG, BIG, d.yS - 0.15, BIG, chZ1 - 1, chZ1 + LAP.len + 1))
       : sub(lapTongue(d, c, chZ1 - 0.05), box(-chW / 2 - 0.5, chW / 2 + 0.5, 0, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1));
-    // the tongue stops either side of the LED wire pocket instead of bridging over it
-    const L = c.led.inlet;
-    let tg = c.led.on ? sub(tongue, box(-L / 2 + 0.5, L / 2 - 0.5, -Sy - 1, -(Sy - d.ledSkin - d.ledW) + 0.5, chZ1 - 1, chZ1 + LAP.len + 1)) : tongue;
+    let tg = tongue;
     if (d.dock) tg = sub(tg, box(d.dock.x - d.dock.w / 2 - 1.1, d.dock.x + d.dock.w / 2 + 1.1, -Sy - 1, d.dock.yS, chZ1 - 1, chZ1 + LAP.len + 1));
     return add(bezel, tg);
   }
@@ -739,7 +758,7 @@ export function makeEngine(wasm) {
   // clip's ears, and a relief in the back of the lip if the plug head stands proud of the glass
   function dockCuts(c, d) {
     const k = d.dock, out = [], pw = k.w / 2 + 0.6;
-    const floor = c.led.on ? -(d.Sy - d.ledSkin) : -d.innerY;
+    const floor = c.led.on ? -(d.Sy - d.ledSkin - d.ledW) + 1.2 : -d.innerY;   // stays above the LED channel, which runs on under it
     const zPf = Math.max(1.2, Math.min(k.zF, k.zBootF) - 0.3);
     out.push(box(k.x - pw, k.x + pw, floor, k.yS + 0.01, zPf, d.fd + 1));
     for (const sx of [-1, 1]) {
@@ -790,13 +809,8 @@ export function makeEngine(wasm) {
     // the shell's slot walls stop at the shoulders; the cassette's band sits on them (the lip in front stays whole)
     if (d.capless) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
     if (c.led.on) {
-      const L = c.led.inlet, ct = coverT(c);
-      const yIn = -(Sy - d.ledSkin), yInner = -(Sy - d.ledSkin - d.ledW);
-      const keep = box(-L / 2, L / 2, -Sy - 1, yInner + 2, -2, ct);           // bridge stays solid at the face
-      const groove = sub(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), keep);
-      cuts.push(groove);
-      cuts.push(box(-L / 2 + 1, L / 2 - 1, yIn, yInner, ct, fd + 1));           // pocket under the bridge, open to the back
-      cuts.push(box(-12, 12, yInner - 0.01, -chH / 2 + 0.01, chZ1, fd + 1));    // joins the bottom wiring notch
+      // one unbroken channel (and diffuser recess) from shoulder to shoulder, plus the feed slot at the top of one side
+      cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), ledFeed(c, d));
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
     if (d.dock) cuts.push(...dockCuts(c, d));
@@ -837,10 +851,9 @@ export function makeEngine(wasm) {
     return sub(m, U(cuts));
   }
 
+  // one piece, shoulder to shoulder
   function diffuser(c) {
-    const d = derive(c), L = c.led.inlet;
-    const ring = ledRing(c, 0, c.led.diffT, 0.7, 0.3);
-    return c.led.on ? sub(ring, box(-L / 2 - 0.3, L / 2 + 0.3, -d.Sy - 1, -(d.Sy - d.ledSkin - d.ledW - 3), -1, c.led.diffT + 1)) : ring;
+    return ledRing(c, 0, c.led.diffT, 0.7, 0.3);
   }
 
   // ------------------------------------------------------------ rings
@@ -927,7 +940,7 @@ export function makeEngine(wasm) {
       adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 4, DISH.hw + 4, innerY - 30, innerY + 0.5, front + 0.05 + 0.01, D - 0.01)));
       cuts.push(mv(dish(d), 0, 0, -d.fd));
     }
-    cuts.push(box(-8, 8, -Sy - 1, -innerY + 1, D - 12, D + LAP.len + 1));     // cable out of the bottom, close to the wall
+    cuts.push(box(-10, 10, -Sy - 1, -innerY + 1, D - 14, D + LAP.len + 1));   // cables out of the bottom, close to the wall (a USB-A plug passes)
     body = add(body, U(adds));
     cuts.push(seamGroove(d, front - 1, D + LAP.len + 1));
     return sub(body, U(cuts));
@@ -989,7 +1002,7 @@ export function makeEngine(wasm) {
       cuts.push(T(T(T(Manifold.cylinder(FLANGE.disc + 2, 2.4, 2.4, 32)).rotate([-90, 0, 0])).translate([x, -1, z])));
       cuts.push(T(T(T(Manifold.cylinder(2.6, 2.4, 5, 32)).rotate([-90, 0, 0])).translate([x, FLANGE.disc - 2.6 + 0.01, z])));   // 90-degree countersink
     }
-    if (S.hollow) cuts.push(cyl(-1, FLANGE.floor + 1, 6, 6), box(-5, 5, -1, 5, 0, S.R + 1));   // cable out under the disc, toward the back
+    if (S.hollow) cuts.push(cyl(-1, FLANGE.floor + 1, PUCK.cable / 2, PUCK.cable / 2));   // cables (and a USB-A plug) drop through into the base
     return sub(body, U(cuts));
   }
 

@@ -415,24 +415,25 @@ function syncControls() {
   if (cfg.led.on) {
     const L = d.led;
     const S = stripOf(cfg);
-    const watts = S ? (S.wPerM * L.strips * L.cutLen) / 1000 : 0, amps = S ? Math.max(1, Math.ceil((watts / S.volts) * 1.25)) : 0;
-    $("#ledOut").innerHTML = (S ? `<dt>Cut ${L.strips} strips, each</dt><dd class="big">${L.leds} LEDs · ${L.cutLen.toFixed(0)} mm</dd>
+    const P = ledPower(), watts = P.watts;
+    $("#ledOut").innerHTML = (S ? `<dt>One strip, cut to</dt><dd class="big">${L.leds} LEDs · ${L.cutLen.toFixed(0)} mm</dd>
+      <dt>Buy</dt><dd>${L.reel} m reel</dd>
       <dt>Cut marks every</dt><dd>${S.cut.toFixed(S.cut % 1 ? 1 : 0)} mm (${Math.round((S.cut * S.perM) / 1000)} LED${Math.round((S.cut * S.perM) / 1000) > 1 ? "s" : ""})</dd>
-      <dt>Power, full brightness</dt><dd>${watts.toFixed(1)} W · ${S.volts} V ${amps} A supply</dd>`
-      : `<dt>${L.strips > 1 ? `Cut ${L.strips} strips, each` : "Cut your strip to"}</dt><dd class="big">${L.strip.toFixed(0)} mm · ${(L.strip / 25.4).toFixed(1)}″</dd>`) + `
+      <dt>Power</dt><dd>${watts.toFixed(0)} W at full white: ${S.volts} V ${P.full} A${S.usb ? `; a ${P.half} A USB port at half brightness` : ""}</dd>`
+      : `<dt>One strip, cut to</dt><dd class="big">${L.strip.toFixed(0)} mm · ${(L.strip / 25.4).toFixed(1)}″</dd>`) + `
       <dt>Channel centerline, shoulder to shoulder</dt><dd>${L.perimeter.toFixed(0)} mm</dd>
       <dt>Visible lit length</dt><dd>${L.lit.toFixed(0)} mm</dd>
       <dt>Glass behind the front face</dt><dd>${d.tabletZ.toFixed(1)} mm</dd>`;
     const Sk = LED_STRIPS[cfg.led.strip] || LED_STRIPS.custom;
     $("#ledLinks").innerHTML = Sk.url ? `<a href="${Sk.url}" target="_blank" rel="noopener">Get it ↗</a>${Sk.url2 ? ` · <a href="${Sk.url2[1]}" target="_blank" rel="noopener">${Sk.url2[0]} ↗</a>` : ""}` : "";
-    $("#ledStripHint").textContent = S ? `${S.kind}, ${S.volts} V, ${S.w} mm ${S.edge ? "thick, 8 mm tall: stand it on its edge, LEDs facing out of the channel, with a dab of hot glue every 10 cm" : "wide: lay it flat, LEDs forward, on its adhesive"}. Sizes are the listing's (or typical for the type), so check yours before printing.` : "Set the width to your strip plus 1 mm, and the depth to the diffuser, the strip and a few mm of air.";
+    $("#ledStripHint").textContent = S ? `${S.kind}, ${S.volts} V, ${S.w} mm ${S.edge ? "thick, 8 mm tall: stand it on its edge, LEDs facing out of the channel, with a dab of hot glue every 10 cm" : "wide: lay it flat, LEDs forward, on its adhesive"}. Power: ${S.power} Sizes are the listing's (or typical for the type), so check yours before printing.` : "Set the width to your strip plus 1 mm, and the depth to the diffuser, the strip and a few mm of air.";
   }
   $("#holeFields").hidden = cfg.back.mode === "none";
   const depth = assembly(cfg).headDepth;
   $("#depthOut").textContent = `${depth.toFixed(0)} mm deep`;
   $("#sum1").textContent = `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation}${cfg.fitMode === "hug" ? ", hugged" : ""}`;
   $("#sum2").textContent = `${cfg.shell.nExt} extension ring${cfg.shell.nExt === 1 ? "" : "s"} · ${depth.toFixed(0)} mm deep`;
-  $("#sum3").textContent = cfg.led.on ? (stripOf(cfg) ? `${(LED_STRIPS[cfg.led.strip].label.split(",")[0])} · ${d.led.strips} × ${d.led.leds} LEDs` : `${cfg.led.w} × ${cfg.led.depth} mm channel · ${d.led.strips > 1 ? d.led.strips + " × " : ""}${(d.led.strip / 25.4).toFixed(1)}″ strip`) : "Off";
+  $("#sum3").textContent = cfg.led.on ? (stripOf(cfg) ? `${(LED_STRIPS[cfg.led.strip].label.split(",")[0])} · ${d.led.leds} LEDs` : `${cfg.led.w} × ${cfg.led.depth} mm channel · ${(d.led.strip / 25.4).toFixed(1)}″ strip`) : "Off";
   $("#sum2").textContent += " · slide-in";
   const n = holes ? holes.all.filter((h) => isOn(h)).length : 0;
   $("#sum4").textContent = cfg.back.mode === "none" ? "Solid" : `${n} ${cfg.back.mode} holes on a ${cfg.back.grid} mm grid`;
@@ -693,13 +694,20 @@ function woodGuide(p) {
   const steps = [
     `Cut ${p.layers === 2 ? "two" : "one"} <b>${p.B} mm</b> square${p.layers === 2 ? "s" : ""} of 18 mm (¾″) plywood${p.layers === 2 ? "; glue and screw them together, grain crossed" : ""}.`,
     "Round the edges with a 6 mm roundover or sandpaper, then seal (oil, or primer and paint).",
+    p.hollow ? "Cables: they run down inside the pole, through the flange and the base. Drill a 25 mm (1″) hole through the base at the centre, and on the underside cut a 20 × 12 mm groove from it to the back edge so the base sits flat." : "Cables: clip them to the back of the pole every 30 cm.",
     `Mark the centre; screw the <b>floor flange</b> there with four #8 × 1¼″ (4 × 30 mm) countersunk wood screws, the thumb screw toward the back.`,
-    p.hollow ? "Cable: it runs down inside the pole and out of the slot under the flange, toward the back. Cut a 10 mm groove from the flange to the back edge so the base sits flat, or let the cable lie on top." : "Cable: clip it to the back of the pole every 30 cm.",
     "Stick four rubber feet near the corners so it sits flat on uneven floors.",
     `Cut the pole to <b>${p.pole} mm</b>, push it into the flange and the post cap, and snug both thumb screws.`,
   ];
   if (p.addKg > 0) steps.push(`For busy events, add about <b>${Math.ceil(p.addKg)} kg</b> under the base (a steel plate or barbell plate screwed to the underside).`);
   return steps;
+}
+// LED power for the one strip: watts at full white, supply amps with 25% margin, and at half brightness (USB controllers)
+function ledPower() {
+  const S = stripOf(cfg), L = derive(cfg).led;
+  if (!S) return { watts: 0, full: 0, half: 0 };
+  const watts = (S.wPerM * L.cutLen) / 1000, a = watts / S.volts;
+  return { watts, full: Math.max(1, Math.ceil(a * 1.25)), half: Math.max(1, Math.ceil(a * 0.5 * 1.25)) };
 }
 function renderStats() {
   const d = derive(cfg), depth = assembly(cfg).headDepth, ln = legNumbers();
@@ -833,15 +841,16 @@ function readme(sizes, projNotes = []) {
     `       plug head ${dk.w} x ${dk.t} x ${dk.len} mm, cable ${dk.cable} mm (measure yours). 2 x M3 x 8 button head + 2 x M3 x 4 short heat-set inserts, 1 small zip tie`);
   else lines.push(`  Right-angle USB-C cable (${mt === "wall" ? "leaves through the notch in the bottom, or the hole in the wall plate" : mt === "post" ? (postSpec(cfg).hollow ? "runs down inside the pole" : "drops beside the pole; clip it to the back") : "routes down through the base"})`);
   if (cfg.led.on && stripOf(cfg)) { const S = stripOf(cfg), L = d.led;
-    lines.push(`  LED strip: ${S.label} - ${S.url}`, `       cut 2 pieces of ${L.leds} LEDs (${L.cutLen.toFixed(0)} mm) at the cut marks; each starts under the bottom inlet cover and runs round the bottom corner and up one side${S.edge ? ", standing on its edge with the LEDs facing out" : ", flat, LEDs forward"}. Wire them in parallel at the inlet. ${S.volts} V supply, ${Math.max(1, Math.ceil(((S.wPerM * 2 * L.cutLen) / 1000 / S.volts) * 1.25))} A.`); }
-  else if (cfg.led.on) lines.push(`  LED strip up to ${cfg.led.w - 1} mm wide. ${d.led.strips > 1 ? `Cut ${d.led.strips} pieces, each` : "Cut to"} ${d.led.strip.toFixed(0)} mm (${(d.led.strip / 25.4).toFixed(1)}"), at the nearest cut mark below that${d.led.strips > 1 ? ". Each starts under the bottom inlet cover and runs around the bottom corner and up one side to its shoulder; wire them in parallel at the inlet" : ""}`);
+    lines.push(`  LED strip: ${S.label} - ${S.url}`, `       one piece of ${L.leds} LEDs (${L.cutLen.toFixed(0)} mm, from a ${L.reel} m reel)${S.edge ? ", standing on its edge with the LEDs facing out" : ", flat, LEDs forward"}. Power: ${S.power} ${S.volts} V, ${ledPower().full} A at full white.`); }
+  if (cfg.led.on && stripOf(cfg) && stripOf(cfg).usb) lines.push(`  One 2-port USB charger at the outlet: USB-C (PD, 20 W+) for the iPad, USB-A for the LED controller (${ledPower().half} A with the controller at half brightness, ${ledPower().full} A for full). Both cables run down through the ${mountOf(cfg) === "wall" ? "notch in the bottom" : "base"}.`);
+  if (cfg.led.on && !stripOf(cfg)) lines.push(`  LED strip up to ${cfg.led.w - 1} mm wide that bends sideways (zig-zag / S-shape). One piece, ${d.led.strip.toFixed(0)} mm (${(d.led.strip / 25.4).toFixed(1)}"), cut at the nearest mark below that.`);
   if (cfg.back.mode !== "none" && mt !== "wall") lines.push(`  Back: ${holes.all.filter(isOn).length} ${cfg.back.mode} holes, ${cfg.back.d} mm x ${cfg.back.pitch} pitch on a ${cfg.back.grid} mm grid (an estimate of Thread Boards' 12 mm thread: print the test coupon first)`);
   lines.push("", "ASSEMBLY (the pictures are in instructions.html)");
   const A = [];
   if (nIns) A.push(`Melt the inserts in (${mt === "post" ? "post cap" : "hub"} top${dk ? ", the two under the slot floor for the dock clip" : ""}${glue ? "" : ", frame rear face, rear lugs of every ring"}).`);
   else if (dk) A.push("Melt the two M3 short inserts into the slot floor for the dock clip.");
   A.push(glue ? `Dry-fit, then glue the frame onto ${mt === "wall" ? "the wall case" : "ring 1"}. Clamp or tape, check the seam all round.` : "Screw ring 1 to the frame from inside.");
-  if (cfg.led.on) A.push("LED: start each strip under the bottom cover, lay it round the corner and up the side; leads go back through the pocket. Press in the diffuser.");
+  if (cfg.led.on) A.push(`LED: press the strip's lead into the slot at the top of the ${cfg.led.feed === "right" ? "right" : "left"} side (as you face the booth) and feed its plug into the box. Lay the strip down that side, across the bottom and up the other side; cut at the last mark before the shoulder. Press in the diffuser.`);
   if (dk) A.push("Dock: push the cable's far end down through the passage under the slot into the box. Slide the plug into the clip from the front, zip-tie the cable right under the clip floor, then screw the clip onto the slot floor (reach down from the top).");
   A.push(mt === "wall" ? "Glue on the wall plate, on a flat table so it squares the case." : glue ? "Glue each ring, then the back panel last on a flat table, one joint at a time." : "Screw on each ring (they alternate A, B), then the back panel.");
   if (mt === "tripod") A.push("Screw the drum to ring 1 from inside. Epoxy and pin the ferrules onto the dowels, then thread them into the drum.");
@@ -961,7 +970,7 @@ function howtoInfo() {
   const pn = mt === "post" ? postNumbers() : null, w = mt === "wall" ? wallNumbers() : null;
   return {
     title: "Booth", subtitle: `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation} · ${mt} · ${cfg.print.nozzle} mm ${cfg.print.material}`,
-    mount: mt, dock: !!d.dock, led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
+    mount: mt, dock: !!d.dock, led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), ledFeed: cfg.led.feed === "right" ? "right" : "left", nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
     backHoles: mt !== "wall" && cfg.back.mode !== "none", liner: cfg.cass.liner,
     legCut: ln ? `${(ln.cut / 25.4).toFixed(1)}″` : "", poleCut: pn ? `${pn.pole} mm` : "", base: pn ? `${pn.B} mm` : "", layers: pn ? pn.layers : 0,
     keySpan: w ? w.span : 0, keyHeight: w ? `${(w.lockH / 25.4).toFixed(1)}″ up` : "",

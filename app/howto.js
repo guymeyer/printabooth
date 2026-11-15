@@ -53,6 +53,8 @@ const driver = (x, y, a = 0) => `<g transform="rotate(${a} ${x} ${y})">` + P(`M$
 const clamp = (x, y) => P(`M${x} ${y}h34v8h-26v30h26v8h-34z`, "#fff") + L(x + 34, y + 8, x + 34, y + 20, 3) + L(x + 34, y + 30, x + 34, y + 38, 3);
 const screw = (x, y, l = 22) => P(`M${x - 6} ${y}h12v5h-12z`, "#fff") + L(x, y + 5, x, y + 5 + l, 3.2) + [...Array(Math.floor(l / 4))].map((_, i) => L(x - 3, y + 8 + i * 4, x + 3, y + 10 + i * 4, 1.4)).join("");
 const insert = (x, y) => P(`M${x - 5} ${y}h10v12h-10z`, G2, 2) + L(x - 5, y + 4, x + 5, y + 4, 1.2) + L(x - 5, y + 8, x + 5, y + 8, 1.2);
+// little scissors
+const L_cut = () => C(-6, -10, 4, "#fff", 2) + C(6, -10, 4, "#fff", 2) + L(-4, -7, 6, 8, 2.2) + L(4, -7, -6, 8, 2.2);
 const clock = (x, y, label) => C(x, y, 15) + L(x, y, x, y - 9, 2.4) + L(x, y, x + 7, y + 3, 2.4) + T(x, y + 32, label, 12);
 const ipad = (x, y, w, h) => P(rrPath(x, y, w, h, 10), "#fff") + P(rrPath(x + 8, y + 8, w - 16, h - 16, 4), "#cfd8de", 1.4) + C(x + w / 2, y + 4.5, 1.6, K, 0);
 
@@ -80,7 +82,11 @@ export function howtoBody(info) {
     [wall ? "" : post ? "Post cap: 4 inserts." : "Hub: 4 inserts.", info.dock ? "Slot floor: 2 short ones for the dock clip." : ""].filter(Boolean).join(" "));
   if (info.dock) step(slab(70, 110, 50, 60, 10, 4, "#fff", 10) + P("M83 40h24v40h-24z", "#fff") + P("M89 20h12v20h-12z", G2) + arrow(140, 50, 112, 70, 0.2) + P("M150 150c20 -8 40 8 60 0", "none", 6) + L(95, 170, 95, 200, 5) + P("M84 176h22v6h-22z", K, 1) + tag(205, 105, "zip tie") + buddy(250, 90, 0.7, "happy"), `${info.plug} into the clip. Zip tie under it.`);
   step(slab(30, 70, 100, 90, 22, 18, "#fff", 14) + slab(150, 66, 100, 90, 22, 18, "#fff", 14) + arrow(132, 112, 150, 112) + glue(135, 160) + clamp(250, 150), wall ? "Glue frame to wall case." : "Glue frame to ring 1.");
-  if (info.led) step(slab(50, 60, 170, 120, 8, 22, "#fff", 18) + `<path d="M62 120V160a12 12 0 0 0 12 12h122a12 12 0 0 0 12 -12V120" fill="none" stroke="${A}" stroke-width="6" stroke-linecap="round"/>` + count(250, 50, 2) + arrow(260, 110, 222, 140, 0.2) + T(150, 205, "diffuser: press in", 12, "middle", 500), info.ledLeds ? `Two strips of ${info.ledLeds} LEDs from the bottom, up each side${info.ledEdge ? ", on edge" : ""}.` : "Two strips from the bottom, up each side.");
+  if (info.led) { const L = info.ledFeed !== "right", sx = L ? 62 : 208, ex = L ? 208 : 62;
+    step(slab(50, 60, 170, 120, 8, 22, "#fff", 18) + `<path d="M62 80V160a12 12 0 0 0 12 12h122a12 12 0 0 0 12 -12V80" fill="none" stroke="${A}" stroke-width="6" stroke-linecap="round"/>` +
+      P(`M${sx - 4} 78q-6 -18 ${L ? -24 : 24} -34`, "none", 2.4) + P(rrPath((L ? sx - 44 : sx + 12) - 2, 30, 18, 12, 3), "#fff", 2) + arrow(sx, 98, sx, 128) + `<g transform="translate(${ex} 78)">` + L_cut() + "</g>" +
+      T(150, 205, "diffuser: press in", 12, "middle", 500),
+      info.ledLeds ? `One strip, ${info.ledLeds} LEDs. Start top ${info.ledFeed}, plug into the box. Cut at the other top.${info.ledEdge ? " On edge." : ""}` : `One strip. Start top ${info.ledFeed}. Cut at the other top.`); }
   if (info.dock) step(slab(60, 60, 170, 120, 8, 22, "#fff", 18) + P("M134 150h22v24h-22z", "#fff") + screw(122, 110, 18) + screw(168, 110, 18) + arrow(122, 80, 122, 104) + arrow(168, 80, 168, 104) + count(250, 50, 2) + tag(245, 200, "M3 × 8"), "Clip into the slot floor. Reach in from the top.");
 
   if (!wall && info.nExt > 0) step(slab(20, 70, 80, 80, 26, 16, "#fff", 12) + slab(115, 66, 80, 80, 26, 16, "#fff", 12) + slab(205, 62, 70, 80, 10, 14) + arrow(103, 108, 115, 108) + arrow(197, 104, 205, 104) + count(150, 30, info.nExt) + glue(140, 170) + clock(250, 180, "30 min"), "Rings, then the back. One joint at a time.");
