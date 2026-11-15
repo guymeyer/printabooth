@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 import Module from "./manifold.js";
 import { makeEngine, PART_INFO, SEAM_REAR } from "./geom.js";
 import { PRINTERS, MAX_BEDS, packBeds, projectFiles } from "./pack3mf.js";

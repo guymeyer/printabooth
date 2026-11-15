@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 # Flattens PrusaSlicer system presets (printer + print + filament) into the project config that the exported .3mf files
 # carry, so PrusaSlicer selects those presets unmodified on open.
 #   python3 tools/prusa/flatten.py path/to/PrusaResearch.ini

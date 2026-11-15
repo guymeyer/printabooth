@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 import Module from 'manifold-3d';
 import * as g from '../app/geom.js';
 const E = g.makeEngine(await Module());

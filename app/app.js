@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 import * as THREE from "./three.module.js";
 import { OrbitControls } from "./OrbitControls.js";
 import { toCreasedNormals } from "./BufferGeometryUtils.js";

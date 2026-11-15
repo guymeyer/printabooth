@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // PrusaSlicer project (3MF) writer: lays the parts out on as many beds as they need (PrusaSlicer 2.9+ multi-bed layout)
 // and stores the printer/print/filament system presets plus per-part setting overrides, so the file opens ready to slice.
 

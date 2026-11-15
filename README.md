@@ -60,3 +60,7 @@ npm run check:print           # full print audit of the default hugged landscape
 - USB-C plug head sizes for the dock are typical measurements, not published specs. Measure yours and print the dock clip first.
 - Tablet presets are estimates from published specs. Measure your iPad and use Custom size before a big print. The tray's pocket corners are deliberately tighter than any iPad's, so the corner radius doesn't need to be exact.
 - The `.3mf` presets come from the profile bundle shipped with PrusaSlicer 2.9.7. If your installed profiles are newer, a few values may show as modified when you open a project.
+
+## License
+
+Proprietary. Copyright (c) 2026 Guy Meyer. All rights reserved. The public site is for interactive use only; the source code, design assets and content may not be copied or redistributed without permission. See [LICENSE.md](LICENSE.md).

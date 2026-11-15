@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Builds the head at every nozzle size and fit and checks the parts still fit together, are single bodies, and that the
 // shell walls landed on whole extrusion widths.   node checks/nozzles.mjs
 import Module from 'manifold-3d';

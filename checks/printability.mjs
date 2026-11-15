@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 import Module from 'manifold-3d';
 const g = await import(process.env.GEOM || '../app/geom.js');
 const wasm = await Module(); const E = g.makeEngine(wasm); const { CrossSection } = E;

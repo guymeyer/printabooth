@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 """Build the static site into build/. app/index.html is a body fragment (the claude.ai artifact host adds the document
 shell), so the build wraps it in a full page; everything else is copied as is. Used by Netlify and tools/preview.py."""
 import os, shutil

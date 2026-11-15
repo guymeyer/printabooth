@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Builds every mount (tripod, post hollow/solid, wall) and the USB-C dock: one body per part, no overlaps in the assembly,
 // and the dock refused in landscape.
 import Module from 'manifold-3d';

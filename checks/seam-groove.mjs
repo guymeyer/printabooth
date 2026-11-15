@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Checks that the frame and rings carry the seam V-groove on the edge that prints at the back of the bed.   node checks/seam-groove.mjs
 import Module from 'manifold-3d';
 import * as g from '../app/geom.js';

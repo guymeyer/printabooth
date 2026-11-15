@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 """Serve the configurator locally from a fresh build.   python3 tools/preview.py [port]"""
 import http.server, os, socketserver, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

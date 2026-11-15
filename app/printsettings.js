@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Print settings from the Nozzle and Material settings: the values written into the PrusaSlicer projects, the README and the
 // on-page summary all come from printSettings(), so they always agree with each other and with the snapped geometry.
 import { derive, mountOf } from "./geom.js";

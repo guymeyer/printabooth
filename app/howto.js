@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Picture instructions, IKEA style: one drawing per step, a part number or a count, almost no words.
 // Everything is drawn here as plain SVG line art so it travels inside the zip as one self-contained HTML file.
 

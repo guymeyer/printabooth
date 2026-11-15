@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Every LED strip preset: the channel it sizes validates clean, the frame/diffuser/ring 1 build as single bodies (the
 // diffuser too: one unbroken U) with no overlaps, the strip's sideways bend at the corners stays within what it allows, and
 // the feed slot at the top of the feed side runs clear from the channel into the box. Landscape and portrait, hugged.

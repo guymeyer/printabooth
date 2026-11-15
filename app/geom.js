@@ -1,3 +1,4 @@
+// Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Booth geometry engine (manifold-3d). Assembly frame: X width, Y up, Z depth (front face z=0).
 // All dimensions in millimetres.
 
