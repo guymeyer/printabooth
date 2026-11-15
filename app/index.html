@@ -205,6 +205,34 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .stat .k { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; text-transform: uppercase; }
 .stat .v { font: 500 15px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat .v small { font-size: 11px; color: var(--ink-3); }
+.palette { position: absolute; left: 12px; top: 60px; width: 214px; border-radius: 12px; background: color-mix(in srgb, var(--raised) 92%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); box-shadow: 0 6px 20px rgb(0 0 0 / .08); font-size: 12px; color: var(--ink-2); z-index: 2; }
+.pal-head { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; padding: 9px 12px; font: 600 12px var(--f-body); color: var(--ink); cursor: pointer; text-align: left; }
+.pal-dots { display: inline-flex; }
+.pal-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--raised); margin-left: -4px; box-shadow: 0 0 0 1px var(--line-2); }
+.pal-dots i:first-child { margin-left: 0; }
+.pal-body { display: grid; gap: 7px; padding: 0 12px 12px; }
+.palette.closed .pal-body { display: none; }
+.pal-k { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
+.looks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.look { display: grid; justify-items: center; gap: 3px; padding: 5px 2px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); cursor: pointer; font: 500 10.5px var(--f-body); color: var(--ink-2); }
+.look[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); color: var(--ink); }
+.look span { display: flex; }
+.look span i { width: 13px; height: 13px; border-radius: 50%; margin-left: -4px; border: 1.5px solid var(--raised); }
+.look span i:first-child { margin-left: 0; }
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.sw { position: relative; width: 26px; height: 26px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); cursor: pointer; padding: 0; }
+.sw[data-used="true"]::after { content: attr(data-n); position: absolute; right: -5px; bottom: -5px; min-width: 14px; height: 14px; border-radius: 7px; background: var(--ink); color: var(--panel); font: 600 9px/14px var(--f-mono); text-align: center; padding: 0 3px; }
+.sw[data-used="false"] { opacity: .55; }
+.sw[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw:disabled { cursor: default; }
+.pal-sel { display: grid; gap: 7px; border-top: 1px solid var(--line); padding-top: 9px; margin-top: 2px; }
+.pal-part { display: flex; justify-content: space-between; align-items: center; color: var(--ink); }
+.pal-x { border: 0; background: none; font-size: 16px; line-height: 1; cursor: pointer; color: var(--ink-3); }
+.pal-scope { font-size: 11px; }
+.pal-pick { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--ink); font-weight: 500; }
+.pal-pick input { width: 30px; height: 26px; padding: 0; border: 1px solid var(--line-2); border-radius: 6px; background: none; cursor: pointer; }
+.pal-hint { margin: 0; font-size: 11px; color: var(--ink-3); }
+@media (max-width: 860px) { .palette { top: auto; bottom: 74px; } .palette:not(.open) .pal-body { display: none; } }
 .loadmsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 13px; pointer-events: none; }
 
 @media (max-width: 860px) {
@@ -515,6 +543,21 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
         </div>
         <span class="focus-pill" id="focusPill"><span id="focusName"></span><button type="button" id="focusClose">Show all</button></span>
         <span class="busy" id="busy" data-idle="false"><i></i><span id="busyText">Starting</span></span>
+      </div>
+      <div class="palette" id="palette">
+        <button type="button" class="pal-head" id="palToggle" aria-expanded="true"><span class="pal-dots" id="palDots"></span>Colors</button>
+        <div class="pal-body" id="palBody">
+          <div class="pal-k">Looks</div>
+          <div class="looks" id="looks" role="group" aria-label="Color looks"></div>
+          <div class="pal-k">In use <span id="palCount"></span></div>
+          <div class="swatches" id="swatches" role="group" aria-label="Colors in use"></div>
+          <div class="pal-sel" id="palSel" hidden>
+            <div class="pal-part"><b id="palPart"></b><button type="button" class="pal-x" id="palClear" aria-label="Deselect">×</button></div>
+            <div class="seg pal-scope" data-scope role="group" aria-label="Apply to"><button type="button" data-v="like" aria-pressed="true">All like it</button><button type="button" data-v="part">This part</button></div>
+            <label class="pal-pick"><input type="color" id="palPick"><span>Pick a new color</span></label>
+          </div>
+          <p class="pal-hint" id="palHint">Click a part in the view to recolor it.</p>
+        </div>
       </div>
       <div class="stats" id="stats"></div>
     </section>

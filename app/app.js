@@ -125,6 +125,28 @@ const MATS = {
   wallCase: mat(COLORS.shell), wallBack: mat(COLORS.shell), postCap: mat(COLORS.hub), flange: mat(COLORS.hub), dockClip: mat(COLORS.hub), threadTest: mat(COLORS.shell),
 };
 const edgeMat = new THREE.LineBasicMaterial({ color: 0x1d2420, transparent: true, opacity: 0.22 });
+const selEdgeMat = new THREE.LineBasicMaterial({ color: 0xd98516 });
+
+// ------------------------------------------------------------------ colors (preview of the filament colors)
+// every printed part takes its role's color from the chosen look unless it has its own; picking a new color adds it to the
+// library. Stored in cfg.colors, so it travels with saves and booth codes.
+const ROLE = { frame: "shell", cap: "shell", ring1: "shell", ringExt: "shell", ringExt2: "shell", ringExtLast: "shell", back: "shell", wallCase: "shell", wallBack: "shell", threadTest: "shell",
+  cassette: "cassette", cassKey: "cassette", hub: "base", postCap: "base", flange: "base", ferrule: "base", dockClip: "base", diffuser: "diffuser" };
+const LOOKS = {
+  studio: { label: "Studio", shell: "#e3e1db", cassette: "#2f5d62", base: "#5f6461", diffuser: "#ffc56b" },
+  graphite: { label: "Graphite", shell: "#3b3e41", cassette: "#d9a441", base: "#232527", diffuser: "#ffc56b" },
+  sage: { label: "Sage", shell: "#d4dccb", cassette: "#3f5e47", base: "#6c7a68", diffuser: "#ffc56b" },
+  terracotta: { label: "Clay", shell: "#efe6da", cassette: "#c0623e", base: "#7d5340", diffuser: "#ffc56b" },
+  cobalt: { label: "Cobalt", shell: "#f3f3f0", cassette: "#2a49a8", base: "#2b2f36", diffuser: "#ffc56b" },
+  night: { label: "Night", shell: "#1e2023", cassette: "#e2513c", base: "#1e2023", diffuser: "#ffc56b" },
+};
+let selPart = null, scope = "like";
+const colorsCfg = () => (cfg.colors ||= { look: "studio", parts: {}, library: [] });
+const lookOf = () => LOOKS[colorsCfg().look] || LOOKS.studio;
+const partColor = (p) => (colorsCfg().parts[p] || lookOf()[ROLE[p]] || "#cccccc").toLowerCase();
+function applyColors() { for (const p of Object.keys(MATS)) MATS[p].color.set(partColor(p)); requestRender(); }
+// printed parts on screen now (the export list), so the counts match what you'll print
+const shownParts = () => exportList().map(([n]) => n).filter((n) => ROLE[n] && n !== "threadTest");
 const GEO = {};
 function setGeometry(name, g) {
   if (GEO[name]) { GEO[name].geo.dispose(); GEO[name].edges.dispose(); }
@@ -138,7 +160,7 @@ function setGeometry(name, g) {
 }
 function partMesh(name) {
   const m = new THREE.Mesh(GEO[name].geo, MATS[name]);
-  m.add(new THREE.LineSegments(GEO[name].edges, edgeMat));
+  m.add(new THREE.LineSegments(GEO[name].edges, name === selPart ? selEdgeMat : edgeMat));
   m.userData.part = name;
   return m;
 }
@@ -475,7 +497,7 @@ function syncControls() {
   }
   $("#sum5").textContent = mt === "tripod" ? `Tripod, camera at ${inch(cfg.legs.camHeight)}, ${cfg.legs.splay}° splay` : mt === "post" ? `Post, camera at ${inch(cfg.legs.camHeight)}` : `Wall, camera at ${inch(cfg.legs.camHeight)}`;
   if (d.dock) $("#sum1").textContent += ", dock";
-  renderPrint();
+  renderPrint(); applyColors(); renderPalette();
 }
 function changed(delay) { save(); syncControls(); rebuild(delay); }
 
@@ -710,6 +732,64 @@ function ledPower() {
   const watts = (S.wPerM * L.cutLen) / 1000, a = watts / S.volts;
   return { watts, full: Math.max(1, Math.ceil(a * 1.25)), half: Math.max(1, Math.ceil(a * 0.5 * 1.25)) };
 }
+function renderPalette() {
+  if (selPart && !shownParts().includes(selPart)) selPart = null;
+  const C = colorsCfg(), used = new Map();
+  for (const p of shownParts()) { const c = partColor(p); used.set(c, [...(used.get(c) || []), p]); }
+  const lib = [...new Set([...used.keys(), ...C.library.map((c) => c.toLowerCase())])];
+  $("#palDots").innerHTML = [...used.keys()].slice(0, 4).map((c) => `<i style="background:${c}"></i>`).join("");
+  $("#looks").innerHTML = Object.entries(LOOKS).map(([k, L]) => `<button type="button" class="look" data-look="${k}" aria-pressed="${k === C.look && !Object.keys(C.parts).length}"><span>${["shell", "cassette", "base"].map((r) => `<i style="background:${L[r]}"></i>`).join("")}</span>${L.label}</button>`).join("");
+  const selC = selPart && partColor(selPart);
+  $("#swatches").innerHTML = lib.map((c) => { const ps = used.get(c) || [];
+    return `<button type="button" class="sw" style="background:${c}" data-c="${c}" data-used="${ps.length > 0}" data-n="${ps.length}" aria-pressed="${c === selC}" title="${c}${ps.length ? ": " + ps.map(partLabel).join(", ") : " (in your library)"}"${selPart ? "" : " disabled"} aria-label="${c}"></button>`; }).join("");
+  $("#palCount").textContent = `· ${used.size}`;
+  $("#palSel").hidden = !selPart; $("#palHint").hidden = !!selPart;
+  if (selPart) { $("#palPart").textContent = partLabel(selPart); $("#palPick").value = selC; }
+  $$("[data-scope] button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === scope)));
+}
+function setPartColor(hex) {
+  if (!selPart) return;
+  const C = colorsCfg(), c = hex.toLowerCase(), was = partColor(selPart);
+  const targets = scope === "part" ? [selPart] : Object.keys(ROLE).filter((p) => partColor(p) === was);
+  for (const p of targets) C.parts[p] = c;
+  if (!C.library.includes(c)) C.library.push(c);
+  save(); applyColors(); renderPalette();
+}
+function selectPart(p) {
+  selPart = p && ROLE[p] ? p : null;
+  root.traverse((o) => { if (o.isLineSegments && o.parent && o.parent.userData.part) o.material = o.parent.userData.part === selPart ? selEdgeMat : edgeMat; });
+  renderPalette(); requestRender();
+}
+$("#looks").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-look]"); if (!b) return;
+  const C = colorsCfg(); C.look = b.dataset.look; C.parts = {};
+  save(); applyColors(); renderPalette();
+});
+$("#swatches").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b && selPart) setPartColor(b.dataset.c); });
+$("#palPick").addEventListener("input", (e) => { if (!selPart) return; const C = colorsCfg(), c = e.target.value.toLowerCase(), was = partColor(selPart);
+  for (const p of scope === "part" ? [selPart] : Object.keys(ROLE).filter((q) => partColor(q) === was)) C.parts[p] = c;
+  applyColors(); });
+$("#palPick").addEventListener("change", (e) => setPartColor(e.target.value));   // committed: the new color joins the library
+$("#palClear").addEventListener("click", () => selectPart(null));
+$$("[data-scope] button").forEach((b) => b.addEventListener("click", () => { scope = b.dataset.v; renderPalette(); }));
+$("#palToggle").addEventListener("click", () => {
+  const pal = $("#palette"), mobile = matchMedia("(max-width: 860px)").matches;
+  pal.classList.toggle(mobile ? "open" : "closed");
+  $("#palToggle").setAttribute("aria-expanded", String(mobile ? pal.classList.contains("open") : !pal.classList.contains("closed")));
+});
+// click (not drag) on a part selects it; Escape lets go
+{
+  const ray = new THREE.Raycaster(); let down = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener("pointerup", (e) => {
+    if (!down || e.button !== 0 || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+    const hit = ray.intersectObjects(root.children, true).find((h) => h.object.isMesh && h.object.userData.part);
+    selectPart(hit ? hit.object.userData.part : null);
+  });
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && selPart && !document.querySelector("dialog[open]")) selectPart(null); });
+}
 function renderStats() {
   const d = derive(cfg), depth = assembly(cfg).headDepth, ln = legNumbers();
   const stats = [
@@ -859,6 +939,10 @@ function readme(sizes, projNotes = []) {
   if (mt === "wall") A.push("Drill two level holes, screws 3 mm proud. Hang the case: heads into the round holes, then slide down.");
   A.push(`Felt on the back of the lip. ${dk ? "iPad face-down in the tray, then slide the cassette down: the plug goes in by itself." : "iPad in the tray, plug in, then slide the cassette down until flush."} Lift it out by the finger scoop.`);
   A.forEach((t, i) => lines.push(`  ${i + 1}. ${t}`));
+  { const byColor = new Map();
+    for (const [n, q] of exportList()) if (ROLE[n] && n !== "threadTest") byColor.set(partColor(n), [...(byColor.get(partColor(n)) || []), `${partLabel(n)}${q > 1 ? ` x${q}` : ""}`]);
+    lines.push("", `COLORS (${colorsCfg().parts && Object.keys(colorsCfg().parts).length ? "custom" : lookOf().label + " look"}; match filament to these)`);
+    for (const [c, ps] of byColor) lines.push(`  ${c}: ${ps.join(", ")}`); }
   lines.push("", "BOOTH CODE (paste into the configurator: Export > Restore a booth)", `  ${boothCode || "(see booth-config.json)"}`);
   return lines.join("\n");
 }
@@ -965,6 +1049,22 @@ $("#codeCopy").addEventListener("click", async () => {
 (async () => { const m = /[#&]cfg=([^&]+)/.exec(location.hash); if (m) try { restore(await decodeCode(decodeURIComponent(m[1])), "from the link"); } catch (e) {} })();
 
 // ------------------------------------------------------------------ picture instructions
+// what goes on the "Before you start" page: [icon, count, short tag]
+function howtoHardware() {
+  const d = derive(cfg), mt = mountOf(cfg), S = stripOf(cfg), glue = cfg.shell.join !== "screws", out = [];
+  const add = (icon, n, tag = "") => n && out.push({ icon, n, tag });
+  add("insert", (mt === "wall" ? 0 : 4) + (glue ? 0 : 4 + 4 * (1 + cfg.shell.nExt)), "M3");
+  add("insert", d.dock ? 2 : 0, "M3 short");
+  add("screw", (mt === "wall" ? 0 : 4) + (d.dock ? 2 : 0), "M3");
+  if (mt === "tripod") add("dowel", 3, legNumbers() ? `${(legNumbers().cut / 25.4).toFixed(1)}″` : "");
+  if (mt === "post") { add("pole", 1, `${postNumbers().pole} mm`); add("insert", 2, "M5"); add("screw", 2, "M5 thumb"); add("anchor", 4, "#8 wood"); add("plywood", +cfg.mount.layers || 2, `${cfg.mount.base} mm`); }
+  if (mt === "wall") add("anchor", 2, "#8 / M4");
+  if (cfg.led.on) { add("strip", 1, S ? `${d.led.leds} LEDs` : ""); if (S && S.usb) add("usb", 1, "USB"); }
+  add("charger", 1, "2-port");
+  add("felt", 1, `${cfg.cass.liner} mm`);
+  add("zip", d.dock ? 1 : 0);
+  return out.slice(0, 8);
+}
 function howtoInfo() {
   const d = derive(cfg), mt = mountOf(cfg), ln = legNumbers();
   const parts = exportList().map(([n, q]) => [partLabel(n), q, bedFor(n) || PART_INFO[n].printer]);
@@ -976,6 +1076,7 @@ function howtoInfo() {
     legCut: ln ? `${(ln.cut / 25.4).toFixed(1)}″` : "", poleCut: pn ? `${pn.pole} mm` : "", base: pn ? `${pn.B} mm` : "", layers: pn ? pn.layers : 0,
     keySpan: w ? w.span : 0, keyHeight: w ? `${(w.lockH / 25.4).toFixed(1)}″ up` : "",
     plug: d.dock ? ((DOCK_PLUGS[cfg.dock.brand] || {}).label || "Plug").split(" ")[0] + " plug" : "", code: boothCode,
+    orient: cfg.orientation, ledMM: d.led.cutLen.toFixed(0), hollow: mt === "post" && postSpec(cfg).hollow, hardware: howtoHardware(),
   };
 }
 $("#howtoBtn").addEventListener("click", async () => {

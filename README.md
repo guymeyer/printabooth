@@ -22,13 +22,17 @@ Every printed part is checked to print without supports (except the universal ca
 
 Step 6 sets the nozzle (0.4, 0.6 or 0.8 mm, default 0.8) and material (PETG or PLA). The nozzle reshapes the white shell parts: walls, ribs and lips snap to whole extrusion widths (nozzle × 1.125, at least 2 lines) and skins to whole layers (nozzle × 0.5, at least 1.2 mm), with outer size and every fit clearance unchanged. The front frame and rings get a 0.4 mm V-groove down their underside and print with it at the back of the bed, where a Rear seam lines up in it. The material only changes the slicer settings (temperature offset, max volumetric speed, cooling, ironing). The page lists what each change did before you export.
 
+## Colors
+
+The viewport's Colors panel previews filament colors. Pick a look (Studio, Graphite, Sage, Clay, Cobalt, Night), or click any printed part and choose a color for it alone or for every part that shares its color. Each new color joins the panel's library, which shows the colors in use and how many parts use each. Colors travel with saves and booth codes, and the README in the download lists which parts to print in which color.
+
 ## Export
 
 The download is a zip with:
 
 - STLs in print orientation, full-detail threads.
 - Two PrusaSlicer 2.9+ projects: one for a Prusa XL (single tool, the chosen nozzle and material) and one for a Core One (HF 0.4, the chosen material). Each loads with its printer and print presets and the Generic PETG or PLA filament preset selected (any brand) and every part already placed on its bed, across up to nine beds, with per-part settings applied.
-- `instructions.html`: picture instructions, IKEA style, for this exact booth.
+- `instructions.html`: picture instructions for this exact booth, drawn to the visual language in `docs/instructions-style.md` (an original character and symbol set; no words needed).
 - A README with quantities, hardware, print settings and assembly order, plus the settings as JSON and a booth code. Paste the code (or open the JSON) under Export, Restore a booth to bring the booth back exactly; a link ending in `#cfg=<code>` opens it too.
 
 ## Layout
