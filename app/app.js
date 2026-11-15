@@ -140,7 +140,7 @@ const LOOKS = {
   cobalt: { label: "Cobalt", shell: "#f3f3f0", cassette: "#2a49a8", base: "#2b2f36", diffuser: "#ffc56b" },
   night: { label: "Night", shell: "#1e2023", cassette: "#e2513c", base: "#1e2023", diffuser: "#ffc56b" },
 };
-let selPart = null, scope = "like";
+let selPart = null;
 const colorsCfg = () => (cfg.colors ||= { look: "studio", parts: {}, library: [] });
 const lookOf = () => LOOKS[colorsCfg().look] || LOOKS.studio;
 const partColor = (p) => (colorsCfg().parts[p] || lookOf()[ROLE[p]] || "#cccccc").toLowerCase();
@@ -160,7 +160,7 @@ function setGeometry(name, g) {
 }
 function partMesh(name) {
   const m = new THREE.Mesh(GEO[name].geo, MATS[name]);
-  m.add(new THREE.LineSegments(GEO[name].edges, name === selPart ? selEdgeMat : edgeMat));
+  m.add(new THREE.LineSegments(GEO[name].edges, (hoverParts || (selPart ? [selPart] : [])).includes(name) ? selEdgeMat : edgeMat));
   m.userData.part = name;
   return m;
 }
@@ -732,51 +732,85 @@ function ledPower() {
   const watts = (S.wPerM * L.cutLen) / 1000, a = watts / S.volts;
   return { watts, full: Math.max(1, Math.ceil(a * 1.25)), half: Math.max(1, Math.ceil(a * 0.5 * 1.25)) };
 }
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const ROLE_LABEL = { shell: "Shell", cassette: "Cassette", base: "Base & clips", diffuser: "Light diffuser" };
+let hoverParts = null;
+// orange edges on the picked part, or on every part of the color row under the pointer
+function paintEdges() {
+  const on = hoverParts || (selPart ? [selPart] : []);
+  root.traverse((o) => { if (o.isLineSegments && o.parent && o.parent.userData.part) o.material = on.includes(o.parent.userData.part) ? selEdgeMat : edgeMat; });
+  requestRender();
+}
+// the colors on screen now, each with the parts that wear it (counted the way you'll print them)
+function colorGroups() {
+  const qty = new Map(exportList()), groups = new Map();
+  for (const p of shownParts()) { const c = partColor(p), g = groups.get(c) || { c, parts: [], n: 0 }; g.parts.push(p); g.n += qty.get(p) || 1; groups.set(c, g); }
+  const order = Object.keys(ROLE_LABEL), rank = (g) => Math.min(...g.parts.map((p) => order.indexOf(ROLE[p])));
+  return [...groups.values()].sort((a, b) => rank(a) - rank(b)).map((g) => ({ ...g, title: [...new Set(g.parts.map((p) => ROLE[p]))].sort((a, b) => order.indexOf(a) - order.indexOf(b)).map((r) => ROLE_LABEL[r]).join(" + ") }));
+}
 function renderPalette() {
   if (selPart && !shownParts().includes(selPart)) selPart = null;
-  const C = colorsCfg(), used = new Map();
-  for (const p of shownParts()) { const c = partColor(p); used.set(c, [...(used.get(c) || []), p]); }
-  const lib = [...new Set([...used.keys(), ...C.library.map((c) => c.toLowerCase())])];
-  $("#palDots").innerHTML = [...used.keys()].slice(0, 4).map((c) => `<i style="background:${c}"></i>`).join("");
-  $("#looks").innerHTML = Object.entries(LOOKS).map(([k, L]) => `<button type="button" class="look" data-look="${k}" aria-pressed="${k === C.look && !Object.keys(C.parts).length}"><span>${["shell", "cassette", "base"].map((r) => `<i style="background:${L[r]}"></i>`).join("")}</span>${L.label}</button>`).join("");
+  const C = colorsCfg(), groups = colorGroups(), custom = Object.keys(C.parts).length > 0;
+  $("#palDots").innerHTML = groups.slice(0, 4).map((g) => `<i style="background:${g.c}"></i>`).join("");
+  $("#lookSel").innerHTML = (custom ? `<option value="" selected>Custom</option>` : "") +
+    Object.entries(LOOKS).map(([k, L]) => `<option value="${k}"${!custom && k === C.look ? " selected" : ""}>${L.label}</option>`).join("");
   const selC = selPart && partColor(selPart);
-  $("#swatches").innerHTML = lib.map((c) => { const ps = used.get(c) || [];
-    return `<button type="button" class="sw" style="background:${c}" data-c="${c}" data-used="${ps.length > 0}" data-n="${ps.length}" aria-pressed="${c === selC}" title="${c}${ps.length ? ": " + ps.map(partLabel).join(", ") : " (in your library)"}"${selPart ? "" : " disabled"} aria-label="${c}"></button>`; }).join("");
-  $("#palCount").textContent = `· ${used.size}`;
+  $("#palList").innerHTML = groups.map((g, i) => {
+    const names = g.parts.map((p) => { const q = exportList().find(([n]) => n === p); return partLabel(p) + (q && q[1] > 1 ? ` ×${q[1]}` : ""); }).join(", ");
+    return `<li class="pal-row${g.c === selC ? " on" : ""}" data-i="${i}" title="${esc(names)}"><label class="chip" style="background:${g.c}"><input type="color" value="${g.c}" data-i="${i}" aria-label="Change ${esc(g.title)} color (${g.n} part${g.n > 1 ? "s" : ""})"></label>` +
+      `<div class="pal-t"><b>${esc(g.title)}</b><span>${g.n} part${g.n > 1 ? "s" : ""} · ${esc(names)}</span></div></li>`;
+  }).join("");
+  palGroups = groups;
   $("#palSel").hidden = !selPart; $("#palHint").hidden = !!selPart;
-  if (selPart) { $("#palPart").textContent = partLabel(selPart); $("#palPick").value = selC; }
-  $$("[data-scope] button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === scope)));
+  if (selPart) {
+    const lib = [...new Set([...groups.map((g) => g.c), ...C.library.map((c) => c.toLowerCase())])];
+    $("#palPart").textContent = partLabel(selPart);
+    $("#swatches").innerHTML = lib.map((c) => `<button type="button" class="sw" style="background:${c}" data-c="${c}" aria-pressed="${c === selC}" aria-label="${c}" title="${c}"></button>`).join("") +
+      `<label class="sw new" title="New color"><input type="color" id="palPick" value="${selC}" aria-label="New color for ${esc(partLabel(selPart))}"></label>`;
+  }
 }
-function setPartColor(hex) {
+let palGroups = [];
+// a color in use changes for every part that wears it
+function recolorGroup(i, hex, commit) {
+  const g = palGroups[i]; if (!g) return;
+  const C = colorsCfg(), c = hex.toLowerCase();
+  for (const p of Object.keys(ROLE)) if (partColor(p) === g.c) C.parts[p] = c;
+  g.c = c;
+  if (commit) { if (!C.library.includes(c)) C.library.push(c); save(); renderPalette(); }
+  applyColors();
+}
+function setPartColor(hex, commit = true) {
   if (!selPart) return;
-  const C = colorsCfg(), c = hex.toLowerCase(), was = partColor(selPart);
-  const targets = scope === "part" ? [selPart] : Object.keys(ROLE).filter((p) => partColor(p) === was);
-  for (const p of targets) C.parts[p] = c;
-  if (!C.library.includes(c)) C.library.push(c);
-  save(); applyColors(); renderPalette();
+  const C = colorsCfg(), c = hex.toLowerCase();
+  C.parts[selPart] = c;
+  if (commit) { if (!C.library.includes(c)) C.library.push(c); save(); renderPalette(); }
+  applyColors();
 }
 function selectPart(p) {
   selPart = p && ROLE[p] ? p : null;
-  root.traverse((o) => { if (o.isLineSegments && o.parent && o.parent.userData.part) o.material = o.parent.userData.part === selPart ? selEdgeMat : edgeMat; });
-  renderPalette(); requestRender();
+  if (selPart) openPalette(true);
+  paintEdges(); renderPalette();
 }
-$("#looks").addEventListener("click", (e) => {
-  const b = e.target.closest("[data-look]"); if (!b) return;
-  const C = colorsCfg(); C.look = b.dataset.look; C.parts = {};
+function openPalette(open) {
+  $("#palette").hidden = !open; $("#colorsBtn").setAttribute("aria-expanded", String(open));
+  if (!open) { hoverParts = null; if (selPart) { selPart = null; renderPalette(); } paintEdges(); }
+}
+$("#colorsBtn").addEventListener("click", () => openPalette($("#palette").hidden));
+$("#lookSel").addEventListener("change", (e) => {
+  if (!e.target.value) return;
+  const C = colorsCfg(); C.look = e.target.value; C.parts = {};
   save(); applyColors(); renderPalette();
 });
-$("#swatches").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b && selPart) setPartColor(b.dataset.c); });
-$("#palPick").addEventListener("input", (e) => { if (!selPart) return; const C = colorsCfg(), c = e.target.value.toLowerCase(), was = partColor(selPart);
-  for (const p of scope === "part" ? [selPart] : Object.keys(ROLE).filter((q) => partColor(q) === was)) C.parts[p] = c;
-  applyColors(); });
-$("#palPick").addEventListener("change", (e) => setPartColor(e.target.value));   // committed: the new color joins the library
+$("#palList").addEventListener("input", (e) => { if (e.target.dataset.i != null) { e.target.parentElement.style.background = e.target.value; recolorGroup(+e.target.dataset.i, e.target.value, false); } });
+$("#palList").addEventListener("change", (e) => { if (e.target.dataset.i != null) recolorGroup(+e.target.dataset.i, e.target.value, true); });
+$("#palList").addEventListener("pointerover", (e) => { const r = e.target.closest(".pal-row"); hoverParts = r ? palGroups[+r.dataset.i].parts : null; paintEdges(); });
+$("#palList").addEventListener("pointerleave", () => { hoverParts = null; paintEdges(); });
+$("#palList").addEventListener("focusin", (e) => { const r = e.target.closest(".pal-row"); if (r) { hoverParts = palGroups[+r.dataset.i].parts; paintEdges(); } });
+$("#palList").addEventListener("focusout", () => { hoverParts = null; paintEdges(); });
+$("#swatches").addEventListener("click", (e) => { const b = e.target.closest("[data-c]"); if (b) setPartColor(b.dataset.c); });
+$("#swatches").addEventListener("input", (e) => { if (e.target.id === "palPick") setPartColor(e.target.value, false); });
+$("#swatches").addEventListener("change", (e) => { if (e.target.id === "palPick") setPartColor(e.target.value); });   // committed: the new color joins the library
 $("#palClear").addEventListener("click", () => selectPart(null));
-$$("[data-scope] button").forEach((b) => b.addEventListener("click", () => { scope = b.dataset.v; renderPalette(); }));
-$("#palToggle").addEventListener("click", () => {
-  const pal = $("#palette"), mobile = matchMedia("(max-width: 860px)").matches;
-  pal.classList.toggle(mobile ? "open" : "closed");
-  $("#palToggle").setAttribute("aria-expanded", String(mobile ? pal.classList.contains("open") : !pal.classList.contains("closed")));
-});
 // click (not drag) on a part selects it; Escape lets go
 {
   const ray = new THREE.Raycaster(); let down = null;
@@ -788,7 +822,7 @@ $("#palToggle").addEventListener("click", () => {
     const hit = ray.intersectObjects(root.children, true).find((h) => h.object.isMesh && h.object.userData.part);
     selectPart(hit ? hit.object.userData.part : null);
   });
-  addEventListener("keydown", (e) => { if (e.key === "Escape" && selPart && !document.querySelector("dialog[open]")) selectPart(null); });
+  addEventListener("keydown", (e) => { if (e.key !== "Escape" || document.querySelector("dialog[open]")) return; if (selPart) selectPart(null); else if (!$("#palette").hidden) openPalette(false); });
 }
 function renderStats() {
   const d = derive(cfg), depth = assembly(cfg).headDepth, ln = legNumbers();

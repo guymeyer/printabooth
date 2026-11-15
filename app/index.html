@@ -205,34 +205,41 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .stat .k { font-size: 11px; color: var(--ink-3); letter-spacing: .03em; text-transform: uppercase; }
 .stat .v { font: 500 15px var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat .v small { font-size: 11px; color: var(--ink-3); }
-.palette { position: absolute; left: 12px; top: 60px; width: 214px; border-radius: 12px; background: color-mix(in srgb, var(--raised) 92%, transparent); backdrop-filter: blur(8px); border: 1px solid var(--line); box-shadow: 0 6px 20px rgb(0 0 0 / .08); font-size: 12px; color: var(--ink-2); z-index: 2; }
-.pal-head { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; padding: 9px 12px; font: 600 12px var(--f-body); color: var(--ink); cursor: pointer; text-align: left; }
+.vleft { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.vleft > * { pointer-events: auto; }
+.colors-btn { display: inline-flex; align-items: center; gap: 7px; height: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 0 11px; min-height: 37px; cursor: pointer; font-size: 13px; color: var(--ink-2);
+  background: color-mix(in srgb, var(--raised) 88%, transparent); backdrop-filter: blur(6px); }
+.colors-btn[aria-expanded="true"] { color: var(--ink); font-weight: 600; border-color: var(--line-2); background: var(--raised); }
 .pal-dots { display: inline-flex; }
 .pal-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--raised); margin-left: -4px; box-shadow: 0 0 0 1px var(--line-2); }
 .pal-dots i:first-child { margin-left: 0; }
-.pal-body { display: grid; gap: 7px; padding: 0 12px 12px; }
-.palette.closed .pal-body { display: none; }
-.pal-k { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-top: 2px; }
-.looks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.look { display: grid; justify-items: center; gap: 3px; padding: 5px 2px 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); cursor: pointer; font: 500 10.5px var(--f-body); color: var(--ink-2); }
-.look[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); color: var(--ink); }
-.look span { display: flex; }
-.look span i { width: 13px; height: 13px; border-radius: 50%; margin-left: -4px; border: 1.5px solid var(--raised); }
-.look span i:first-child { margin-left: 0; }
+.palette { position: absolute; left: 12px; top: 60px; width: 260px; max-height: calc(100% - 140px); overflow: auto; border-radius: 12px; background: color-mix(in srgb, var(--raised) 94%, transparent); backdrop-filter: blur(8px);
+  border: 1px solid var(--line); box-shadow: 0 6px 20px rgb(0 0 0 / .08); font-size: 12.5px; color: var(--ink-2); z-index: 2; padding: 12px; display: grid; gap: 12px; }
+.palette[hidden], .pal-sel[hidden] { display: none; }
+.pal-k { display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.pal-look select { font-size: 13px; padding: 6px 8px; }
+.pal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.pal-row { display: grid; grid-template-columns: 34px 1fr; align-items: center; gap: 10px; padding: 5px 6px; margin: 0 -6px; border-radius: 8px; }
+.pal-row:hover, .pal-row.on { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pal-row.on { box-shadow: inset 0 0 0 1px var(--accent); }
+.chip { position: relative; display: block; width: 34px; height: 34px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); cursor: pointer; overflow: hidden; }
+.chip input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pal-t { min-width: 0; }
+.pal-t b { display: block; color: var(--ink); font-weight: 600; font-size: 13px; }
+.pal-t span { display: block; color: var(--ink-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-sel { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 11px; }
+.pal-part { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; color: var(--ink); }
+.pal-part span { color: var(--ink-3); font-size: 11.5px; }
+.pal-x { border: 0; background: none; font-size: 16px; line-height: 1; cursor: pointer; color: var(--ink-3); padding: 0 2px; }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
-.sw { position: relative; width: 26px; height: 26px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); cursor: pointer; padding: 0; }
-.sw[data-used="true"]::after { content: attr(data-n); position: absolute; right: -5px; bottom: -5px; min-width: 14px; height: 14px; border-radius: 7px; background: var(--ink); color: var(--panel); font: 600 9px/14px var(--f-mono); text-align: center; padding: 0 3px; }
-.sw[data-used="false"] { opacity: .55; }
+.sw { width: 26px; height: 26px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); cursor: pointer; padding: 0; }
 .sw[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
-.sw:disabled { cursor: default; }
-.pal-sel { display: grid; gap: 7px; border-top: 1px solid var(--line); padding-top: 9px; margin-top: 2px; }
-.pal-part { display: flex; justify-content: space-between; align-items: center; color: var(--ink); }
-.pal-x { border: 0; background: none; font-size: 16px; line-height: 1; cursor: pointer; color: var(--ink-3); }
-.pal-scope { font-size: 11px; }
-.pal-pick { display: flex; align-items: center; gap: 8px; cursor: pointer; color: var(--ink); font-weight: 500; }
-.pal-pick input { width: 30px; height: 26px; padding: 0; border: 1px solid var(--line-2); border-radius: 6px; background: none; cursor: pointer; }
-.pal-hint { margin: 0; font-size: 11px; color: var(--ink-3); }
-@media (max-width: 860px) { .palette { top: auto; bottom: 74px; } .palette:not(.open) .pal-body { display: none; } }
+.sw.new { position: relative; overflow: hidden; background: conic-gradient(#e2513c, #ffc56b, #3f5e47, #2a49a8, #c0623e, #e2513c); }
+.sw.new input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+.pal-hint { margin: 0; font-size: 11.5px; color: var(--ink-3); }
+@media (max-width: 860px) { .palette { top: auto; bottom: 12px; right: 12px; width: auto; max-height: 72%; z-index: 3; } }
+.loadmsg[hidden] { display: none; }
 .loadmsg { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-3); font-size: 13px; pointer-events: none; }
 
 @media (max-width: 860px) {
@@ -535,29 +542,27 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
       <div id="stage"></div>
       <div class="loadmsg" id="loadMsg">Loading the geometry kernel…</div>
       <div class="vtools">
+        <div class="vleft">
         <div class="seg" data-view role="group" aria-label="View">
           <button type="button" data-v="head" aria-pressed="true">Head</button>
           <button type="button" data-v="exploded">Exploded</button>
           <button type="button" data-v="kiosk">Full kiosk</button>
           <button type="button" data-v="back">Back</button>
         </div>
+        <button type="button" class="colors-btn" id="colorsBtn" aria-expanded="false" aria-controls="palette"><span class="pal-dots" id="palDots"></span>Colors</button>
+        </div>
         <span class="focus-pill" id="focusPill"><span id="focusName"></span><button type="button" id="focusClose">Show all</button></span>
         <span class="busy" id="busy" data-idle="false"><i></i><span id="busyText">Starting</span></span>
       </div>
-      <div class="palette" id="palette">
-        <button type="button" class="pal-head" id="palToggle" aria-expanded="true"><span class="pal-dots" id="palDots"></span>Colors</button>
-        <div class="pal-body" id="palBody">
-          <div class="pal-k">Looks</div>
-          <div class="looks" id="looks" role="group" aria-label="Color looks"></div>
-          <div class="pal-k">In use <span id="palCount"></span></div>
-          <div class="swatches" id="swatches" role="group" aria-label="Colors in use"></div>
-          <div class="pal-sel" id="palSel" hidden>
-            <div class="pal-part"><b id="palPart"></b><button type="button" class="pal-x" id="palClear" aria-label="Deselect">×</button></div>
-            <div class="seg pal-scope" data-scope role="group" aria-label="Apply to"><button type="button" data-v="like" aria-pressed="true">All like it</button><button type="button" data-v="part">This part</button></div>
-            <label class="pal-pick"><input type="color" id="palPick"><span>Pick a new color</span></label>
-          </div>
-          <p class="pal-hint" id="palHint">Click a part in the view to recolor it.</p>
+      <div class="palette" id="palette" role="region" aria-label="Colors" hidden>
+        <label class="pal-look"><span class="pal-k">Look</span><select id="lookSel" aria-label="Color look"></select></label>
+        <div><span class="pal-k" id="palUsedK">In use</span><ul class="pal-list" id="palList" aria-labelledby="palUsedK"></ul></div>
+        <div class="pal-sel" id="palSel" hidden>
+          <div class="pal-part"><b id="palPart"></b><button type="button" class="pal-x" id="palClear" aria-label="Deselect part">&times;</button></div>
+          <span class="pal-k">Just this part</span>
+          <div class="swatches" id="swatches" role="group" aria-label="Color for this part"></div>
         </div>
+        <p class="pal-hint" id="palHint">Change a color above to recolor its parts. Click a part in the view to give it its own color.</p>
       </div>
       <div class="stats" id="stats"></div>
     </section>
