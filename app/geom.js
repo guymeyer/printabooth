@@ -591,7 +591,15 @@ export function makeEngine(wasm) {
   // sockets print on the bed: a 0.4 mm relief at the mouth swallows the first layer's squish (elephant's foot)
   // tongue at lapA..lapA+lapT from the inner wall; the socket is a rebate open to the inside (never a sliver on its inner side)
   const sockIn = (d) => Math.min(d.lapA - LAP.clr, -LAP.clr), sockOut = (d) => d.lapA + d.lapT + LAP.clr;
-  const lapSocket = (d, c, z0 = 0) => add(band(d, c, sockIn(d), sockOut(d), z0 - 1, z0 + LAP.depth), band(d, c, sockIn(d) - 0.4, sockOut(d) + 0.4, z0 - 1, z0 + 0.5));
+  // the socket's roof is bridged (rings print front edge down). A closed loop bridged in one go gets one bridge direction, so
+  // two of its sides would be bridged lengthwise and sag; the sides (with their corners) go one layer deeper, so the top and
+  // bottom runs and each side are bridged on different layers, each as its own short span across the groove.
+  const lapSocket = (d, c, z0 = 0) => {
+    const x = d.Sx - d.R, lh = d.plan.lh;
+    const sides = Manifold.union([box(x, 3000, -3000, 3000, z0 + LAP.depth - 0.01, z0 + LAP.depth + lh), box(-3000, -x, -3000, 3000, z0 + LAP.depth - 0.01, z0 + LAP.depth + lh)]);
+    return add(band(d, c, sockIn(d), sockOut(d), z0 - 1, z0 + LAP.depth), band(d, c, sockIn(d) - 0.4, sockOut(d) + 0.4, z0 - 1, z0 + 0.5),
+      inter(band(d, c, sockIn(d), sockOut(d), z0 + LAP.depth - 0.02, z0 + LAP.depth + lh), T(sides)));
+  };
   const lapTongue = (d, c, zFace) => band(d, c, d.lapA, d.lapA + d.lapT, zFace - 0.01, zFace + LAP.len);
   // seam groove on the underside of a tall part, full height (z0..z1)
   const seamGroove = (d, z0, z1) => {
@@ -820,6 +828,11 @@ export function makeEngine(wasm) {
       // one unbroken channel (and diffuser recess) from shoulder to shoulder, plus the feed slot at the top of one side
       cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), ledFeed(c, d));
       if (d.led.bayZ > d.ledDepth + 0.2) cuts.push(...ledBays(c, d));
+      // the channel's floor is bridged (the frame prints face down). Bridged as one U it gets one bridge direction, so one run
+      // would be bridged lengthwise and sag. The bottom run's floor goes one layer deeper: each side (with its corner) and the
+      // bottom are then bridged on different layers, each straight across the channel.
+      { const ox = d.Sx - d.ledSkin, oy = d.Sy - d.ledSkin, run = ox - d.led.ro;
+        cuts.push(box(-run, run, -oy, -(oy - d.ledW), d.ledDepth - 0.01, d.ledDepth + d.plan.lh)); }
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
     if (d.dock) cuts.push(...dockCuts(c, d));

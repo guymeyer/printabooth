@@ -20,7 +20,7 @@ Two tabs sit at the top of the settings. **Basic** walks through eleven plain qu
   - **Wall:** the same front frame and cassette on a shallow wall case and a wall plate with two keyholes. The page gives the screw spacing and the height to hang it at.
 - **USB-C dock (portrait, hugged tray):** a fixed plug in a printed clip at the bottom of the slot, so the iPad plugs itself in as the cassette drops in. Pick Apple, Anker or Amazon Basics (links to each), or measure your own plug.
 
-Every printed part is checked to print without supports (except the universal cassette's back ledge), with no wall under 1.4 mm and no overlaps in the assembly.
+Bridged roofs are split so a slicer bridges each one straight across: the LED channel's bottom run is one layer deeper than its sides, and each ring's glue socket is one layer deeper along its sides than along its top and bottom. That way no U or loop gets a single bridge direction that runs lengthwise down part of it and sags. Every printed part is checked to print without supports (except the universal cassette's back ledge), with no wall under 1.4 mm and no overlaps in the assembly.
 
 ## Nozzle and material
 
