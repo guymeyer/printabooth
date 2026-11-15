@@ -388,7 +388,44 @@ function fmt(path, v) {
   if (path === "legs.splay") return `${v}°`;
   return mm(v, Number.isInteger(+v) ? 0 : 1);
 }
+// ------------------------------------------------------------------ Basic mode: the same settings as a few plain questions
+// Its controls carry data-path like the Advanced ones, so they read and write the same cfg; this only fills the choices that
+// depend on the booth, and keeps a value set in Advanced (a custom size, say) visible as its own choice.
+function opts(sel, list, extra) {
+  sel.innerHTML = list.map(([v, l]) => `<option value="${v}">${l}</option>`).join("") + (extra ? `<option value="${extra[0]}">${extra[1]}</option>` : "");
+}
+function keepCustom(sel, v, label) {
+  sel.querySelectorAll("option[data-extra]").forEach((o) => o.remove());
+  if (![...sel.options].some((o) => o.value === String(v))) { const o = new Option(label, String(v)); o.dataset.extra = "1"; sel.add(o); }
+}
+const feetIn = (inches) => `${Math.floor(inches / 12)}′ ${(inches % 12).toFixed(1).replace(/\.0$/, "")}″`;
+function syncBasic() {
+  const mt = mountOf(cfg), custom = !(cfg.tablet.preset in TABLETS) || cfg.tablet.preset === "custom";
+  opts($("#bPreset"), Object.entries(TABLETS).filter(([k]) => k !== "custom").map(([k, t]) => [k, t.label]), custom ? ["custom", "Custom size (set in Advanced)"] : null);
+  $("#bPreset").value = custom ? "custom" : cfg.tablet.preset;
+  $("#bCamSide").hidden = (cfg.orientation === "landscape") === (cfg.tablet.camEdge === "long");
+  $("#bFitHint").textContent = cfg.fitMode === "hug" ? "The shell is sized snugly to this iPad." : `One ${cfg.cass.size} mm square shell takes any 11″ iPad in its own cassette.`;
+  const dockWith = (side) => !!derive({ ...cfg, camSide: side, fitMode: "hug", dock: { ...cfg.dock, on: true } }).dock;
+  const other = cfg.camSide === "left" ? "right" : "left", here = dockWith(cfg.camSide), flip = !here && dockWith(other), canDock = here || flip;
+  $("#bDock").disabled = !canDock && !cfg.dock.on;
+  $("#bDockCable").hidden = !cfg.dock.on;
+  $("#bDockHint").textContent = !canDock ? "Works with the screen in portrait, where the iPad's port faces down." : flip && !cfg.dock.on ? `A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down. Turning it on puts the camera on the ${other}, so the port faces down.` : cfg.dock.on ? "A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down. Uses a snug shell." : "A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down.";
+  keepCustom($("#bDockBrand"), cfg.dock.brand, "Custom plug (set in Advanced)");
+  $("#bLedStrip").hidden = $("#bLedFeed").hidden = !cfg.led.on;
+  keepCustom($("#bStrip"), cfg.led.strip, "Custom channel (set in Advanced)");
+  $("#bDowel").hidden = mt !== "tripod"; $("#bPole").hidden = $("#bBase").hidden = mt !== "post";
+  keepCustom($("#bPoleSel"), cfg.mount.pole, "Custom pole (set in Advanced)");
+  const hs = []; for (let i = 48; i <= 72; i += 3) hs.push([Math.round(i * 25.4), `${feetIn(i)}${i === 60 ? " (eye level)" : ""}`]);
+  opts($("#bCamH"), hs); keepCustom($("#bCamH"), cfg.legs.camHeight, feetIn(cfg.legs.camHeight / 25.4));
+  keepCustom($("#bDowelSel"), cfg.legs.dowel, `${(cfg.legs.dowel).toFixed(1)} mm`);
+  keepCustom($("#bBaseSel"), cfg.mount.base, `${cfg.mount.base} mm square`);
+  $("#bRoom").hidden = $("#bBack").hidden = mt === "wall";
+  const depth = (n) => assembly({ ...cfg, shell: { ...cfg.shell, nExt: n } }).headDepth.toFixed(0);
+  opts($("#bRings"), [0, 1, 2, 3].map((n) => [n, n ? `${n} extra ring${n > 1 ? "s" : ""}, ${depth(n)} mm deep` : `None, ${depth(0)} mm deep`]));
+  keepCustom($("#bRings"), cfg.shell.nExt, `${cfg.shell.nExt} extra rings, ${depth(cfg.shell.nExt)} mm deep`);
+}
 function syncControls() {
+  syncBasic();
   const d = derive(cfg);
   presetSel.value = cfg.tablet.preset in TABLETS ? cfg.tablet.preset : "custom";
   for (const el of $$("[data-path]")) {
@@ -464,7 +501,7 @@ function syncControls() {
   const mt = mountOf(cfg);
   $("#tripodFields").hidden = mt !== "tripod"; $("#postFields").hidden = mt !== "post"; $("#wallFields").hidden = mt !== "wall";
   $("#ringFields").hidden = mt === "wall"; $("#wallShellHint").hidden = mt !== "wall";
-  $("#wallBackHint").hidden = mt !== "wall"; $("[data-path='back.mode']").closest(".field").hidden = mt === "wall";
+  $("#wallBackHint").hidden = mt !== "wall"; $("#advPane [data-path='back.mode']").closest(".field").hidden = mt === "wall";
   if (mt === "wall") $("#holeFields").hidden = true;
   $("#poleCustom").hidden = cfg.mount.pole !== "custom";
   $("#wallDOut").textContent = d.wallD > (+cfg.mount.wallD || 0) ? `${d.wallD} mm (minimum)` : `${d.wallD} mm`;
@@ -546,6 +583,10 @@ for (const el of $$("input[data-path], select[data-path]")) {
     let v = el.type === "checkbox" ? el.checked : el.value;
     if (el.type === "number" || el.type === "range" || el.dataset.num) { v = parseFloat(v); if (!isFinite(v)) return; }
     if (p.startsWith("tablet.")) cfg.tablet.preset = "custom";
+    if (p === "dock.on" && v) {   // the dock needs the snug shell, and the iPad's port facing down: turn the camera round if that does it
+      cfg.fitMode = "hug";
+      if (!derive(cfg).dock) { const was = cfg.camSide; cfg.camSide = was === "left" ? "right" : "left"; if (!derive(cfg).dock) cfg.camSide = was; }
+    }
     set(p, v);
     if (p === "led.strip") { const f = ledFit(cfg, v); if (f) { cfg.led.w = f.w; cfg.led.depth = f.depth; } }   // a strip sizes its channel
     changed(el.type === "range" ? 260 : 120);
@@ -555,12 +596,34 @@ for (const seg of $$(".seg[data-path]")) seg.addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   if (seg.dataset.path.startsWith("print.")) printChange(seg.dataset.path, b.dataset.v);
   else set(seg.dataset.path, b.dataset.v);
+  if (seg.dataset.path === "fitMode" && b.dataset.v === "universal") cfg.dock.on = false;   // the dock only fits the snug shell
   changed(60);
 });
 $("#camH").addEventListener("input", (e) => { cfg.legs.camHeight = Math.round(parseFloat(e.target.value) * 25.4); save(); syncControls(); renderStats(); if (view === "kiosk") composeScene(); });
 $("#extMinus").addEventListener("click", () => { if (cfg.shell.nExt > 0) { cfg.shell.nExt--; changed(40); } });
 $("#extPlus").addEventListener("click", () => { if (cfg.shell.nExt < 6) { cfg.shell.nExt++; changed(40); } });
 $("#reset").addEventListener("click", () => { cfg = clone(DEFAULTS); focus = null; changed(0); });
+$("#bPreset").addEventListener("change", (e) => { if (e.target.value === "custom") return; presetSel.value = e.target.value; presetSel.dispatchEvent(new Event("change")); });
+{ // Basic / Advanced tabs; the choice is remembered on this browser
+  const MODE = "printabooth.mode";
+  const setMode = (m) => {
+    $("#basicPane").hidden = m !== "basic"; $("#advPane").hidden = m === "basic";
+    $("#tabBasic").setAttribute("aria-selected", String(m === "basic")); $("#tabAdv").setAttribute("aria-selected", String(m !== "basic"));
+    try { localStorage.setItem(MODE, m); } catch (e) {}
+  };
+  let m = "basic"; try { m = localStorage.getItem(MODE) || "basic"; } catch (e) {}
+  setMode(m);
+  $("#tabBasic").addEventListener("click", () => setMode("basic")); $("#tabAdv").addEventListener("click", () => setMode("advanced"));
+  $(".modes").addEventListener("keydown", (e) => { if (e.key === "ArrowLeft" || e.key === "ArrowRight") { const b = $("#tabBasic").getAttribute("aria-selected") === "true"; setMode(b ? "advanced" : "basic"); (b ? $("#tabAdv") : $("#tabBasic")).focus(); } });
+  // Basic's last step works the Export step's buttons and shows their messages
+  $("#bExport").addEventListener("click", () => $("#exportBtn").click());
+  $("#bHowto").addEventListener("click", () => $("#howtoBtn").click());
+  $("#bCode").addEventListener("click", () => $("#codeCopy").click());
+  const mirror = (el) => new MutationObserver(() => { if (el.textContent.trim()) $("#bMsg").textContent = el.textContent; }).observe(el, { childList: true, characterData: true, subtree: true });
+  mirror($("#exportMsg")); mirror($("#codeMsg"));
+  new MutationObserver(() => { $("#bExport").disabled = $("#exportBtn").disabled; }).observe($("#exportBtn"), { attributes: true, attributeFilter: ["disabled"] });
+  $("#bLook").addEventListener("change", (e) => { $("#lookSel").value = e.target.value; $("#lookSel").dispatchEvent(new Event("change")); });
+}
 
 $("[data-view]").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
@@ -752,6 +815,7 @@ function renderPalette() {
   if (selPart && !shownParts().includes(selPart)) selPart = null;
   const C = colorsCfg(), groups = colorGroups(), custom = Object.keys(C.parts).length > 0;
   $("#palDots").innerHTML = groups.slice(0, 5).map((g) => `<i style="background:${g.c}"></i>`).join("");
+  $("#bLook").innerHTML = $("#lookSel").innerHTML; $("#bDots").innerHTML = $("#palDots").innerHTML;
   $("#sum7").textContent = `${custom ? "Custom" : lookOf().label} · ${groups.length} color${groups.length === 1 ? "" : "s"}`;
   $("#lookSel").innerHTML = (custom ? `<option value="" selected>Custom</option>` : "") +
     Object.entries(LOOKS).map(([k, L]) => `<option value="${k}"${!custom && k === C.look ? " selected" : ""}>${L.label}</option>`).join("");

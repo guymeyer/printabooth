@@ -73,6 +73,18 @@ button, input, select { font: inherit; color: inherit; }
 .panel { min-height: 0; overflow-y: auto; background: var(--panel); border-right: 1px solid var(--line); }
 .panel-inner { padding-block: 12px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; display: grid; gap: 10px; }
 
+[hidden] { display: none !important; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; position: sticky; top: 0; z-index: 3; }
+.modes button { border: 0; background: transparent; border-radius: 7px; padding: 8px; cursor: pointer; font-size: 13.5px; color: var(--ink-2); }
+.modes button[aria-selected="true"] { background: var(--raised); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line-2); }
+.pane { display: grid; gap: 10px; }
+.q { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 12px; }
+.q > h2 { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 10px; margin: 0; font: 650 15px/1.25 var(--f-display); letter-spacing: -0.005em; }
+.q > h2 .num { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.q .qb { display: grid; gap: 12px; padding-left: 36px; }
+.q .seg { grid-auto-columns: 1fr; }
+.q .seg button { font-size: 13px; padding: 7px 6px; }
+.q .export-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .issues { display: grid; gap: 6px; }
 .issue { border-radius: 8px; padding: 8px 10px; font-size: 13px; display: flex; gap: 8px; }
 .issue.error { background: var(--err-soft); color: var(--err); }
@@ -267,7 +279,82 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
   <main class="layout">
     <aside class="panel" aria-label="Configuration">
       <div class="panel-inner">
+        <div class="modes" role="tablist" aria-label="Settings mode">
+          <button type="button" role="tab" id="tabBasic" aria-controls="basicPane" aria-selected="true">Basic</button><button type="button" role="tab" id="tabAdv" aria-controls="advPane" aria-selected="false">Advanced</button>
+        </div>
         <div class="issues" id="issues" aria-live="polite"></div>
+
+        <div class="pane" id="basicPane" role="tabpanel" aria-labelledby="tabBasic">
+          <section class="q" aria-labelledby="bq1"><h2 id="bq1"><span class="num">1</span>Which iPad do you have?</h2>
+            <div class="qb"><select id="bPreset" aria-label="iPad model"></select></div></section>
+
+          <section class="q" aria-labelledby="bq2"><h2 id="bq2"><span class="num">2</span>Which way should the screen sit?</h2>
+            <div class="qb">
+              <div class="seg" data-path="orientation" role="group" aria-label="Orientation"><button type="button" data-v="landscape">Landscape</button><button type="button" data-v="portrait">Portrait</button></div>
+              <div class="field" id="bCamSide"><span class="lbl">Camera on the</span>
+                <div class="seg" data-path="camSide" role="group" aria-label="Camera side"><button type="button" data-v="left">Left</button><button type="button" data-v="right">Right</button></div></div>
+            </div></section>
+
+          <section class="q" aria-labelledby="bq3"><h2 id="bq3"><span class="num">3</span>Should other iPads fit it too?</h2>
+            <div class="qb">
+              <div class="seg" data-path="fitMode" role="group" aria-label="Fit"><button type="button" data-v="universal">Yes, most iPads</button><button type="button" data-v="hug">No, just mine</button></div>
+              <p class="hint" id="bFitHint"></p>
+            </div></section>
+
+          <section class="q" aria-labelledby="bq4"><h2 id="bq4"><span class="num">4</span>Charge it as it slides in?</h2>
+            <div class="qb">
+              <label class="toggle" for="bDock">USB-C dock <span class="switch"><input type="checkbox" id="bDock" data-path="dock.on"><span></span></span></label>
+              <div class="field" id="bDockCable"><label for="bDockBrand">Cable</label>
+                <select id="bDockBrand" data-path="dock.brand"><option value="apple">Apple 60W USB-C Charge Cable (1 m)</option><option value="anker">Anker USB-C to USB-C (240W, braided)</option><option value="amazon">Amazon Basics USB-C to USB-C 2.0</option></select></div>
+              <p class="hint" id="bDockHint"></p>
+            </div></section>
+
+          <section class="q" aria-labelledby="bq5"><h2 id="bq5"><span class="num">5</span>Add a light ring?</h2>
+            <div class="qb">
+              <label class="toggle" for="bLed">LED ring around the screen <span class="switch"><input type="checkbox" id="bLed" data-path="led.on"><span></span></span></label>
+              <div class="field" id="bLedStrip"><label for="bStrip">LED strip</label>
+                <select id="bStrip" data-path="led.strip"><option value="topxcdz">TOPXCDZ 5 V RGB (USB, no soldering)</option><option value="demas">DEMASLED 12 V white</option><option value="btf">BTF-LIGHTING 12 V RGB</option><option value="adafruit">Adafruit NeoPixel Side Light</option></select></div>
+              <div class="field" id="bLedFeed"><span class="lbl">Its plug goes in at the top</span>
+                <div class="seg" data-path="led.feed" role="group" aria-label="Feed side"><button type="button" data-v="left">Left</button><button type="button" data-v="right">Right</button></div></div>
+            </div></section>
+
+          <section class="q" aria-labelledby="bq6"><h2 id="bq6"><span class="num">6</span>How will it stand?</h2>
+            <div class="qb">
+              <div class="seg" data-path="mount.type" role="group" aria-label="Mount"><button type="button" data-v="tripod">Tripod</button><button type="button" data-v="post">Post</button><button type="button" data-v="wall">Wall</button></div>
+              <div class="field"><label for="bCamH">Camera height</label><select id="bCamH" data-path="legs.camHeight" data-num="1"></select></div>
+              <div class="field" id="bDowel"><label for="bDowelSel">Wood dowel legs</label>
+                <select id="bDowelSel" data-path="legs.dowel" data-num="1"><option value="25.4">1″ (25.4 mm)</option><option value="31.75">1¼″ (31.8 mm)</option><option value="38.1">1½″ (38.1 mm)</option><option value="44.45">1¾″ (44.5 mm)</option></select></div>
+              <div class="field" id="bPole"><label for="bPoleSel">Pole</label>
+                <select id="bPoleSel" data-path="mount.pole"><option value="emt1">1″ EMT conduit</option><option value="emt125">1¼″ EMT conduit</option><option value="dowel125">1¼″ hardwood dowel</option><option value="closet">1⅜″ closet rod</option><option value="dowel15">1½″ hardwood dowel</option></select></div>
+              <div class="field" id="bBase"><label for="bBaseSel">Wood base</label>
+                <select id="bBaseSel" data-path="mount.base" data-num="1"><option value="450">450 mm (18″) square</option><option value="500">500 mm (20″) square</option><option value="600">600 mm (24″) square</option><option value="700">700 mm (28″) square</option></select></div>
+            </div></section>
+
+          <section class="q" aria-labelledby="bq7" id="bRoom"><h2 id="bq7"><span class="num">7</span>Room behind the iPad?</h2>
+            <div class="qb"><select id="bRings" data-path="shell.nExt" data-num="1" aria-label="Extension rings"></select>
+              <p class="hint">Extra rings make space for a battery or other electronics.</p></div></section>
+
+          <section class="q" aria-labelledby="bq8" id="bBack"><h2 id="bq8"><span class="num">8</span>Holes on the back?</h2>
+            <div class="qb"><select id="bBackSel" data-path="back.mode" aria-label="Back panel"><option value="threaded">Threaded, for Thread Boards screws</option><option value="plain">Plain holes, for zip ties</option><option value="none">None, solid back</option></select></div></section>
+
+          <section class="q" aria-labelledby="bq9"><h2 id="bq9"><span class="num">9</span>Your printer</h2>
+            <div class="qb">
+              <div class="field"><span class="lbl">Nozzle</span><div class="seg" data-path="print.nozzle" role="group" aria-label="Nozzle"><button type="button" data-v="0.4">0.4 mm</button><button type="button" data-v="0.6">0.6 mm</button><button type="button" data-v="0.8">0.8 mm</button></div></div>
+              <div class="field"><span class="lbl">Filament</span><div class="seg" data-path="print.material" role="group" aria-label="Filament"><button type="button" data-v="PETG">PETG</button><button type="button" data-v="PLA">PLA</button></div></div>
+            </div></section>
+
+          <section class="q" aria-labelledby="bq10"><h2 id="bq10"><span class="num">10</span><span>Colors <span class="pal-dots" id="bDots" style="margin-left:6px"></span></span></h2>
+            <div class="qb"><select id="bLook" aria-label="Color look"></select>
+              <p class="hint">Fine-tune each part's color in Advanced, step 7.</p></div></section>
+
+          <section class="q" aria-labelledby="bq11"><h2 id="bq11"><span class="num">11</span>Get your files</h2>
+            <div class="qb">
+              <div class="export-row"><button class="btn primary" id="bExport" type="button">Download print files</button><button class="btn" id="bHowto" type="button">Instructions</button><button class="btn" id="bCode" type="button">Copy booth code</button></div>
+              <p class="hint" id="bMsg" aria-live="polite">Everything you need to print and build it: the parts, ready-to-slice projects, and picture instructions.</p>
+            </div></section>
+        </div>
+
+        <div class="pane" id="advPane" role="tabpanel" aria-labelledby="tabAdv" hidden>
 
         <details class="step" open id="s1">
           <summary><span class="num">1</span><span class="st"><h2>Tablet &amp; cassette</h2><span class="sum" id="sum1"></span></span><span class="chev">▶</span></summary>
@@ -543,6 +630,7 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
             <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL project for the nozzle and material set in Print setup, and a Core One HF 0.4 project for the base and ferrules, every part already placed across multiple beds with its print settings), illustrated instructions, a README with quantities and hardware, and your settings as JSON plus a booth code you can paste back in here. The projects open in PrusaSlicer 2.9 or newer.</p>
           </div>
         </details>
+        </div>
       </div>
     </aside>
 

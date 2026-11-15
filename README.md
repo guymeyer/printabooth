@@ -4,6 +4,10 @@ A browser configurator for a 3D-printed, modular iPad photo booth. Pick the tabl
 
 ![Head preview](docs/screenshot.png)
 
+## Basic and Advanced
+
+Two tabs sit at the top of the settings. **Basic** walks through eleven plain questions (which iPad, which way the screen sits, whether other iPads should fit, the USB-C dock, the light ring, how it stands and how high the camera is, room for electronics, the back panel, your printer, colors, and the download), each answered with a dropdown, a switch or a choice of buttons. **Advanced** is the full set of numbered steps with every dimension exposed. Both edit the same booth, so you can switch at any time; anything set to a custom value in Advanced shows as its own choice in Basic. The page remembers which tab you used.
+
 ## The design
 
 - **Cassette:** the iPad lies in a tray (hugged to the tablet, or a one-size-fits-most cassette) that slides into the shell from the top. A finger scoop and a grip ridge lift it back out. The cassette's top band wraps the upper corners as a contrasting accent color.
