@@ -8,7 +8,7 @@ let bad = 0;
 for (const nozzle of g.NOZZLES) for (const [mode, ori, led] of [['hug', 'landscape', true], ['hug', 'portrait', true], ['hug', 'landscape', false], ['universal', 'landscape', true]]) {
   const c = structuredClone(g.DEFAULTS); c.fitMode = mode; c.orientation = ori; c.led.on = led; c.print.nozzle = nozzle;
   const d = g.derive(c), P = d.plan, base = structuredClone(c); base.print.nozzle = 0.4;
-  const parts = g.assembly(c).items.map((it) => ({ n: it.part, m: E.raw(it.part, c).translate(it.pos) }));
+  const parts = g.assembly(c).items.map((it) => ({ n: it.part, m: g.place(E.raw(it.part, c), it) }));
   const over = [];
   for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) { const v = parts[i].m.intersect(parts[j].m).volume(); if (v > 1) over.push(`${parts[i].n}x${parts[j].n}:${v.toFixed(0)}`); }
   const multi = parts.filter((p) => p.m.decompose().length > (p.n === 'diffuser' ? 2 : 1)).map((p) => p.n);

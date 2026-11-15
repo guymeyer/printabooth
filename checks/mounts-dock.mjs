@@ -19,7 +19,7 @@ for (const [n, c] of Object.entries(cfgs)) {
   const issues = g.validate(c).map(i => i.level[0] + ':' + i.msg.slice(0, 60));
   console.log('==', n, 'Sy', d.Sy, 'Sh', d.Sh.toFixed(1), 'depth', asm.headDepth.toFixed(0), 'dock', d.dock && [d.dock.yS.toFixed(1), d.dock.yFace.toFixed(1), d.dock.zF.toFixed(2), d.dock.zB.toFixed(2), d.chZ1.toFixed(2)].join('/'), issues);
   if (issues.some(i => i[0] === 'e')) continue;
-  const parts = asm.items.map(it => ({ n: it.part, m: E.raw(it.part, c).translate(it.pos) }));
+  const parts = asm.items.map(it => ({ n: it.part, m: g.place(E.raw(it.part, c), it) }));
   const extra = d.mount === 'post' ? ['flange'] : [];
   for (const p of [...parts.map(p => p.n), ...extra, 'threadTest']) {
     const m = E.printed(p, c); const bb = m.boundingBox();

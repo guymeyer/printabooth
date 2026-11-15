@@ -47,6 +47,10 @@ export function postSpec(c) {
   const depth = Math.max(POST.minDepth, Math.ceil(p.od * 1.6));
   return { ...p, rB, rS, depth, R: Math.max(rS + 14, 56), H: POST.disc + depth };
 }
+// the top of each side of the LED channel: an unlit end bay under a small cover, flush with the face and in the shell's color.
+// The strip runs on under it by `tuck` (its cut end, solder pads and lead hide there) and stops; the rest of the bay is room for
+// the lead to turn back into the box (feed side) or just empty. The bay is also dug `deeper` below the channel floor.
+export const LED_END = { len: 22, tuck: 8, clr: 0.15, deeper: 3, tongueH: 3 };
 // where the LED feed slot can run behind the channel (|x|): two lines of wall to the cassette slot and to ring 1's glue socket
 // (plus its 0.4 mm mouth relief)
 export function feedRoom(d) {
@@ -180,6 +184,7 @@ export const PART_INFO = {
   cassette: { label: "Cassette", printer: "XL" },
   frame: { label: "Front frame", printer: "XL" },
   diffuser: { label: "LED diffuser", printer: "XL", note: "Translucent PETG" },
+  ledCap: { label: "LED end cover", printer: "Core One", note: "Shell color; hides the strip's ends" },
   cap: { label: "Top cap", printer: "XL" },
   cassKey: { label: "Cassette top key", printer: "Core One", note: "Drops in after the iPad" },
   ring1: { label: "Ring 1", printer: "XL", note: "Includes the cassette stop" },
@@ -387,11 +392,13 @@ export function derive(c) {
       const ro = ri + ledW, lc = ro - ledW / 2;                            // centreline corner radius
       const loop = 4 * (lx + ly) - 8 * lc + 2 * Math.PI * lc;
       const U = loop - (2 * (lx - lc) + Math.PI * lc + 2 * Math.max(0, (ly - lc) - yEnd));
-      const strip = U - 4, S = stripOf(c);                                   // 2 mm clear at each end
+      const yLit = yEnd - LED_END.len, yStrip = yLit + LED_END.tuck;        // diffuser stops / strip stops (both sides)
+      const strip = U - 2 * (yEnd - yStrip), S = stripOf(c);
       const cutLen = S ? Math.floor(strip / S.cut + 1e-6) * S.cut : strip;
       const feedX = (c.led.feed === "right" ? -1 : 1) * (Sx - ledSkin - ledW / 2);   // viewer's left is +x
       return { perimeter: U, strip, cutLen, segs: S ? Math.round(cutLen / S.cut) : 0, leds: S ? Math.round((cutLen / 1000) * S.perM) : 0,
-        strips: 1, lit: U, yEnd, ro, lc, feedX, reel: Math.ceil(strip / 1000 - 1e-6) };
+        strips: 1, lit: U - 2 * LED_END.len, yEnd, yLit, yStrip, ro, lc, feedX, reel: Math.ceil(strip / 1000 - 1e-6),
+        bayZ: Math.max(P.ledDepth, Math.min(P.ledDepth + LED_END.deeper, chZ1 - 0.05 - 2 * P.ew)) };
     })(),
   };
 }
@@ -736,7 +743,7 @@ export function makeEngine(wasm) {
   function ledFeed(c, d) {
     const sg = Math.sign(d.led.feedX);
     const { lo, hi } = feedRoom(d), mid = (lo + hi) / 2, hw = Math.min(2.5, (hi - lo) / 2);
-    return box(sg * (mid - hw * sg), sg * (mid + hw * sg), d.led.yEnd - 14, d.led.yEnd, d.ledDepth - 0.01, d.fd + 1);
+    return box(sg * (mid - hw * sg), sg * (mid + hw * sg), d.led.yStrip, d.led.yEnd, d.ledDepth - 0.01, d.fd + 1);
   }
 
   // ------------------------------------------------------------ front frame
@@ -812,6 +819,7 @@ export function makeEngine(wasm) {
     if (c.led.on) {
       // one unbroken channel (and diffuser recess) from shoulder to shoulder, plus the feed slot at the top of one side
       cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), ledFeed(c, d));
+      if (d.led.bayZ > d.ledDepth + 0.2) cuts.push(...ledBays(c, d));
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
     if (d.dock) cuts.push(...dockCuts(c, d));
@@ -852,9 +860,29 @@ export function makeEngine(wasm) {
     return sub(m, U(cuts));
   }
 
-  // one piece, shoulder to shoulder
+  // one piece, from the bottom of one end bay round to the other
   function diffuser(c) {
-    return ledRing(c, 0, c.led.diffT, 0.7, 0.3);
+    return ledRing(c, 0, c.led.diffT, 0.7, LED_END.len + LED_END.clr);
+  }
+  // the end bays: the channel's last LED_END.len at the top of each side, dug deeper (never through the frame's back)
+  function ledBays(c, d) {
+    const ox = d.Sx - d.ledSkin, ix = ox - d.ledW;
+    return [1, -1].map((s) => box(Math.min(s * ix, s * ox), Math.max(s * ix, s * ox), d.led.yLit, d.led.yEnd, d.ledDepth - 0.01, d.led.bayZ));
+  }
+  // the end bay geometry the cover is built around (+x side, frame coordinates), and where it sits
+  function ledCapSpec(c) {
+    const d = derive(c), ox = d.Sx - d.ledSkin, ix = ox - d.ledW, k = LED_END.clr;
+    const { hi } = feedRoom(d), tw = Math.min(Math.max(1.2, 2 * d.plan.ew), ox - k - (hi + 0.3));   // tongue stays clear of the feed slot
+    return { d, ox, ix, k, tw, xc: (ix + ox) / 2, yc: (d.led.yLit + d.led.yEnd) / 2 };
+  }
+  // end cover: fills the diffuser recess over the end bay, flush with the face, with a press-fit tongue down the bay's outer
+  // wall where the strip has stopped (it never presses on the strip or the lead). Built about its own centre; the right-hand
+  // one is the same part turned round.
+  function ledCap(c) {
+    const { d, ox, ix, k, tw, xc, yc } = ledCapSpec(c), e = 1.0 - k;
+    let m = box(ix - e, ox + e, d.led.yLit + k, d.led.yEnd - k, 0, c.led.diffT);
+    if (tw >= 0.9) m = add(m, box(ox - k - tw, ox - k, d.led.yStrip + 1, d.led.yEnd - k - 1, c.led.diffT - 0.01, c.led.diffT + LED_END.tongueH));
+    return T(m.translate([-xc, -yc, 0]));
   }
 
   // ------------------------------------------------------------ rings
@@ -1227,7 +1255,7 @@ export function makeEngine(wasm) {
   }
 
   const BUILDERS = {
-    cassette, cassKey, frame, cap, diffuser, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
+    cassette, cassKey, frame, cap, diffuser, ledCap, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
     ring1: (c) => ring(c, true),
     ringExt: (c) => ring(c, false, c.shell.join === "screws"),
     ringExt2: (c) => ring(c, false, false),
@@ -1242,6 +1270,7 @@ export function makeEngine(wasm) {
     frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode === "hug" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
     cap: (c) => [dims(c), c.fitMode, c.cass, c.tablet.t, c.shell, c.cap, c.inserts],
     diffuser: (c) => [dims(c), c.shell.cornerR, c.led],
+    ledCap: (c) => [dims(c), c.led, feedRoom(derive(c))],
     ring1: (c) => [dims(c), c.shell, c.cap, c.inserts, c.led, c.cass, c.fitMode, c.tablet, c.orientation, c.camSide, c.fit],
     ringExt: (c) => [dims(c), c.shell, c.inserts],
     ringExt2: (c) => [dims(c), c.shell, c.inserts],
@@ -1340,6 +1369,8 @@ export function makeEngine(wasm) {
 }
 
 // ---------------------------------------------------------------- layout + numbers (pure)
+// a part's mesh at its place in the assembly (spin: turned 180 degrees about the face normal, e.g. the right-hand LED cover)
+export const place = (m, it) => (it.spin ? m.rotate([0, 0, 180]) : m).translate(it.pos);
 export function assembly(c) {
   const d = derive(c), fd = d.fd, D = c.shell.ringD, D1 = d.D1;
   const items = [
@@ -1349,7 +1380,10 @@ export function assembly(c) {
     ...(d.capless ? [] : [{ part: "cap", pos: [0, 0, 0] }]),
     { part: "ring1", pos: [0, 0, fd] },
   ];
-  if (c.led.on) items.push({ part: "diffuser", pos: [0, 0, 0] });
+  if (c.led.on) {
+    const ox = d.Sx - d.ledSkin, xc = ox - d.ledW / 2, yc = (d.led.yLit + d.led.yEnd) / 2;
+    items.push({ part: "diffuser", pos: [0, 0, 0] }, { part: "ledCap", pos: [xc, yc, 0] }, { part: "ledCap", pos: [-xc, yc, 0], spin: true });
+  }
   if (d.dock) items.push({ part: "dockClip", pos: [0, 0, 0] });
   if (d.mount === "wall") {
     items.splice(items.findIndex((i) => i.part === "ring1"), 1);

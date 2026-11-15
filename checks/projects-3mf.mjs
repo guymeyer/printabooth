@@ -7,7 +7,7 @@ import fs from 'fs';
 const E = g.makeEngine(await Module());
 const mode = process.argv[2] || 'hug', nExt = +(process.argv[3] || 1);
 const c = structuredClone(g.DEFAULTS); c.fitMode = mode; c.shell.nExt = nExt;
-const qty = { cassette:1, frame:1, ring1:1, diffuser:1, ringExt:nExt, back:1, hub:1, ferrule:3, cassKey: 1 };
+const qty = { cassette:1, frame:1, ring1:1, diffuser:1, ledCap:2, ringExt:nExt, back:1, hub:1, ferrule:3, cassKey: 1 };
 const parts = Object.keys(qty).filter(p => p !== 'cassKey' || mode !== 'hug').filter(p => qty[p] > 0);
 const out = {}, meshes = {};
 for (const p of parts) { const r = E.exportSTL(p, c); out[p] = r; meshes[p] = { pos: r.pos, idx: r.idx }; }

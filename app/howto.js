@@ -245,6 +245,13 @@ export function howtoBody(info) {
     const oD = iso(O2, 0, 0, -36);
     step(head(O2, sz, pair, { led: true }) + onFront(oD, 0, `<path d="${ledU(HW, HH)}" fill="none" stroke="${K}" stroke-width="8" stroke-linecap="round"/><path d="${ledU(HW, HH)}" fill="none" stroke="${W}" stroke-width="3.6" stroke-linecap="round"/>`) +
       arrow(...dz(pt(oD, 6, HH * 0.62), 4), ...dz(pt(oD, 6, HH * 0.62), 28)) + arrow(...dz(pt(oD, HW - 6, HH * 0.62), 4), ...dz(pt(oD, HW - 6, HH * 0.62), 28)) + check(286, 64), "Press in the diffuser");
+    { // the two end covers over the strip's ends, flush with the face
+      const cov = (x, o = {}) => P(rr(x - 5, HH * 0.3 - 2, 10, 15, 2.5), { dash: o.dash, fill: o.dash ? "none" : W });
+      const oC = iso(O2, 0, 0, -30), tip = pt(O2, HW - 6, HH * 0.3 + 6);
+      step(head(O2, sz, pair, { led: true, ledPath: cov(6) + cov(HW - 6) }) + onFront(oC, 0, cov(6, { dash: true }) + cov(HW - 6, { dash: true })) +
+        arrow(...dz(pt(O2, 6, HH * 0.3 + 6), -24), ...dz(pt(O2, 6, HH * 0.3 + 6), -6)) + arrow(...dz(tip, -24), ...dz(tip, -6)) + count(46, 52, 2) +
+        magnify(...tip, 262, 186, 34, P("M-34 -10h68v26h-68z") + P(rr(-8, -26, 16, 30, 3), { fill: W }) + L(-30, 4, 30, 4, { dash: "3 3", w: 1.6 }) + check(24, -22, 0.8)),
+        "Press an end cover into the top of each side, over the strip's ends and the lead"); }
   }
   if (info.dock) step(head(O2, sz, pair) + magnify(...pt(O2, HW / 2, HH - 8), 250, 78, 50,
       P("M-50 18h100v40h-100z") + P("M-12 -30h24v48h-24z") + P(rr(-6, -46, 12, 16, 2), { w: 1.6 }) + L(0, 18, 0, 40) + zip(-4, 26) +

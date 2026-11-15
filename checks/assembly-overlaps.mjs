@@ -5,7 +5,7 @@ const E = g.makeEngine(await Module());
 for (const mode of ['universal','hug']) {
   const c = structuredClone(g.DEFAULTS); c.fitMode = mode; c.shell.nExt = 1;
   const asm = g.assembly(c), d = g.derive(c);
-  const parts = asm.items.map((it, k) => ({ n: it.part, m: E.raw(it.part, c).translate(it.pos) }));
+  const parts = asm.items.map((it, k) => ({ n: it.part, m: g.place(E.raw(it.part, c), it) }));
   const bad = [];
   for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
     const v = parts[i].m.intersect(parts[j].m).volume(); if (v > 1) bad.push(`${parts[i].n}x${parts[j].n}:${v.toFixed(0)}`);
