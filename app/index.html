@@ -50,7 +50,8 @@ body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.app { height: 100%; display: grid; grid-template-rows: auto 1fr; }
+.app { height: 100%; display: grid; grid-template-rows: 1fr; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .bar {
   display: flex; align-items: center; gap: 12px;
   padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -202,6 +203,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .vtools > * { pointer-events: auto; }
 .vtools .seg { background: color-mix(in srgb, var(--raised) 88%, transparent); backdrop-filter: blur(6px); }
 .busy { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 6px 10px; border-radius: 999px; background: color-mix(in srgb, var(--raised) 88%, transparent); color: var(--ink-2); transition: opacity .2s; }
+.vright { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.reset { font: inherit; font-size: 12px; line-height: inherit; border: 0; cursor: pointer; }
+.reset:hover { color: var(--ink); background: var(--raised); }
+.reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .busy i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
 .busy[data-idle="true"] i { animation: none; background: var(--ok); }
 @keyframes pulse { 50% { opacity: .3; } }
@@ -270,11 +275,7 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
 </style>
 
 <div class="app">
-  <header class="bar">
-    <div class="brand"><h1>Cassette Booth Builder</h1><span>Modular iPad photo booth enclosure</span></div>
-    <div class="spacer"></div>
-    <button class="btn" id="reset" type="button">Reset</button>
-  </header>
+  <h1 class="sr-only">Cassette Booth Builder</h1>
 
   <main class="layout">
     <aside class="panel" aria-label="Configuration">
@@ -645,7 +646,10 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
           <button type="button" data-v="back">Back</button>
         </div>
         <span class="focus-pill" id="focusPill"><span id="focusName"></span><button type="button" id="focusClose">Show all</button></span>
-        <span class="busy" id="busy" data-idle="false"><i></i><span id="busyText">Starting</span></span>
+        <div class="vright">
+          <span class="busy" id="busy" data-idle="false"><i></i><span id="busyText">Starting</span></span>
+          <button class="busy reset" id="reset" type="button">Reset</button>
+        </div>
       </div>
       <div class="stats" id="stats"></div>
     </section>
