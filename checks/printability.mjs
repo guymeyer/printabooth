@@ -16,7 +16,7 @@ const presets = {
 presets[cfgName]();
 const only = process.argv[3] ? process.argv[3].split(',') : null;
 const parts = [...new Set([...g.assembly(c).items.map(i => i.part), 'ferrule'])].filter(p => !only || only.includes(p));
-const W = [0.9, 1.2];   // thinnest printable wall ~2 lines at 0.45; flag <1.2 as weak, <0.9 as unprintable
+const W = process.env.WALLS ? process.env.WALLS.split(",").map(Number) : [0.9, 1.2];   // thinnest printable wall ~2 lines; override with WALLS=1.7 for a 0.8 nozzle
 function opening(cs, w) { const a = cs.offset(-w / 2, 'Round', 2, 24); const b = a.offset(w / 2, 'Round', 2, 24); a.delete(); return b; }
 function thinScan(m, axis, step) {
   // axis: 'z' slice horizontal (wall thickness in plane), 'x'/'y' slices vertical (skin thickness incl. floors)
@@ -28,7 +28,7 @@ function thinScan(m, axis, step) {
     for (const w of W) {
       const op = opening(cs, w), lost = cs.subtract(op);
       const comps = lost.decompose(); 
-      for (const cp of comps) { const a = cp.area(); if (a > (w === 0.9 ? 1.0 : 3.0)) { const b = cp.bounds(); out.push({ w, axis, z: +z.toFixed(1), a: +a.toFixed(1), b: [b.min.map(v=>+v.toFixed(0)), b.max.map(v=>+v.toFixed(0))] }); } cp.delete(); }
+      for (const cp of comps) { const a = cp.area(); if (a > (w <= 0.9 ? 1.0 : 3.0)) { const b = cp.bounds(); out.push({ w, axis, z: +z.toFixed(1), a: +a.toFixed(1), b: [b.min.map(v=>+v.toFixed(0)), b.max.map(v=>+v.toFixed(0))] }); } cp.delete(); }
       op.delete(); lost.delete();
     }
     cs.delete();
