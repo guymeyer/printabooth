@@ -63,7 +63,7 @@ function call(msg, progress) {
 }
 function busy(on, text) { $("#busy").dataset.idle = String(!on); $("#busyText").textContent = text; }
 
-const ALL_PARTS = ["cassette", "cassKey", "topKey", "frame", "cap", "diffuser", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
+const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "diffuser", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
 // parts this booth uses (built for the preview); the export list adds quantities
 function usedParts() {
   const mt = mountOf(cfg), d = derive(cfg);
@@ -127,7 +127,7 @@ const COLORS = {
 };
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.0, ...extra });
 const MATS = {
-  cassette: mat(COLORS.cassette), cassKey: mat(COLORS.cassette), topKey: mat(COLORS.cassette), frame: mat(COLORS.shell), cap: mat(COLORS.shell), ring1: mat(COLORS.shell),
+  cassette: mat(COLORS.cassette), cassKey: mat(COLORS.cassette), frame: mat(COLORS.shell), cap: mat(COLORS.shell), ring1: mat(COLORS.shell),
   ringExt: mat(COLORS.shell), ringExt2: mat(COLORS.shell), ringExtLast: mat(COLORS.shell), back: mat(COLORS.shell), hub: mat(COLORS.hub), ferrule: mat(COLORS.ferrule),
   diffuser: mat(COLORS.diffuser, { emissive: 0xffa53a, emissiveIntensity: 0.55, roughness: 0.4, transparent: true, opacity: 0.92 }),
   wallCase: mat(COLORS.shell), wallBack: mat(COLORS.shell), postCap: mat(COLORS.hub), flange: mat(COLORS.hub), dockClip: mat(COLORS.hub), threadTest: mat(COLORS.shell),
@@ -139,7 +139,7 @@ const selEdgeMat = new THREE.LineBasicMaterial({ color: 0xd98516 });
 // every printed part takes its role's color from the chosen look unless it has its own; picking a new color adds it to the
 // library. Stored in cfg.colors, so it travels with saves and booth codes.
 const ROLE = { frame: "shell", cap: "shell", ring1: "shell", ringExt: "shell", ringExt2: "shell", ringExtLast: "shell", back: "shell", wallCase: "shell", wallBack: "shell", threadTest: "shell",
-  cassette: "cassette", cassKey: "cassette", topKey: "cassette", hub: "base", postCap: "base", flange: "base", ferrule: "base", dockClip: "base", diffuser: "diffuser" };
+  cassette: "cassette", cassKey: "cassette", hub: "base", postCap: "base", flange: "base", ferrule: "base", dockClip: "base", diffuser: "diffuser" };
 const LOOKS = {
   studio: { label: "Studio", shell: "#e3e1db", cassette: "#2f5d62", base: "#5f6461", diffuser: "#ffc56b" },
   graphite: { label: "Graphite", shell: "#3b3e41", cassette: "#d9a441", base: "#232527", diffuser: "#ffc56b" },
@@ -226,19 +226,25 @@ function composeScene() {
     if (it.spin) m.rotation.z = Math.PI;
     if (exploded) {
       const off = {
-        cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], topKey: [0, d.Ch * 0.75, 0], cap: [0, 150, 0], diffuser: [0, 0, -110], ring1: [0, 0, 60],
+        cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], cap: [0, 150, 0], diffuser: [0, 0, -110], ring1: [0, 0, 60],
         back: [0, 0, 60 * (cfg.shell.nExt + 2)], hub: [0, -150, 60], postCap: [0, -150, 60], wallCase: [0, 0, 60], wallBack: [0, 0, 140], dockClip: [0, -70, -90],
       }[it.part];
       if (it.part.startsWith("ringExt")) { extIndex++; m.position.z += 60 * (extIndex + 1); }
       else if (off) m.position.add(new THREE.Vector3(...off));
     }
     root.add(m);
-    if (it.part === "cassette" || it.part === "topKey") {   // the iPad rides with the cassette (or, with no cassette, the key)
+    if (it.part === "cassette") {   // the iPad rides with the cassette
       const t = tabletMesh();
       t.position.set(d.ipadOff[0], d.ipadOff[1] - d.chanClr, d.tabletZ);
-      if (exploded) t.position.add(new THREE.Vector3(0, d.direct ? d.Ch * 0.4 : d.Ch * 1.12, d.direct ? -40 : d.hug ? -60 : 70));
+      if (exploded) t.position.add(new THREE.Vector3(0, d.Ch * 1.12, d.hug ? -60 : 70));
       root.add(t);
     }
+  }
+  if (d.direct) {   // no cassette: the iPad stands in the slot on its own (lifted out of the top when exploded)
+    const t = tabletMesh();
+    t.position.set(d.ipadOff[0], d.ipadOff[1] - d.chanClr, d.tabletZ);
+    if (exploded) t.position.add(new THREE.Vector3(0, d.Ch * 1.05, 0));
+    root.add(t);
   }
   const mt = mountOf(cfg);
   if (kiosk && mt !== "tripod") {
@@ -417,7 +423,7 @@ function syncBasic() {
   opts($("#bPreset"), Object.entries(TABLETS).filter(([k]) => k !== "custom").map(([k, t]) => [k, t.label]), custom ? ["custom", "Custom size (set in Advanced)"] : null);
   $("#bPreset").value = custom ? "custom" : cfg.tablet.preset;
   $("#bCamSide").hidden = (cfg.orientation === "landscape") === (cfg.tablet.camEdge === "long");
-  $("#bFitHint").textContent = cfg.fitMode === "direct" ? "No cassette: the iPad slides straight into a slot sized to it, and a top key drops in after it. Smallest booth, one less part; this iPad only, without a case."
+  $("#bFitHint").textContent = cfg.fitMode === "direct" ? "No cassette: the iPad slips in through a slit in the top into a pocket sized to it. Smallest booth, one less part; this iPad only, without a case."
     : cfg.fitMode === "hug" ? "The shell is sized snugly to this iPad, in a cassette you lift it out with." : `One ${cfg.cass.size} mm square shell takes any 11″ iPad in its own cassette.`;
   const dockWith = (side) => !!derive({ ...cfg, camSide: side, fitMode: cfg.fitMode === "direct" ? "direct" : "hug", dock: { ...cfg.dock, on: true } }).dock;
   const other = cfg.camSide === "left" ? "right" : "left", here = dockWith(cfg.camSide), flip = !here && dockWith(other), canDock = here || flip;
@@ -483,7 +489,7 @@ function syncControls() {
       : `With the camera where it is, the port faces the ${edge} edge (seen from the front), so the plug room goes there only.`;
   }
   $("#fitHint").textContent = d.direct
-    ? `No cassette: the iPad slides straight into a slot sized to it, the frame's lip holds its black glass border, and a top key drops in after it. Shell ${d.Sw.toFixed(0)} × ${d.Sh.toFixed(0)} mm, ${d.bezel.side.toFixed(0)} mm from the edge to the screen at the sides and ${d.bezel.top.toFixed(0)} mm at the top. This iPad only, and without a case.`
+    ? `No cassette: the iPad slips in through a slit in the top, just its own width and thickness, into a pocket sized to it; the frame's lip holds its black glass border and the shell fills everything else. Shell ${d.Sw.toFixed(0)} × ${d.Sh.toFixed(0)} mm, ${d.bezel.side.toFixed(0)} mm from the edge to the screen at the sides and ${d.bezel.top.toFixed(0)} mm at the top. This iPad only, and without a case.`
     : hug
     ? `Bezel lock: the iPad lies face-forward in an open tray and the frame's lip holds it by its black glass border. Shell ${d.Sw.toFixed(0)} × ${d.Sh.toFixed(0)} mm, ${d.bezel.side.toFixed(0)} mm from the edge to the screen at the sides and ${d.bezel.top.toFixed(0)} mm at the top. This shell fits this tablet only.`
     : `A ${d.Cw} mm square cassette with a front mask fits most 11" iPads in either orientation. Every cassette for this booth shares that size.`;
@@ -944,7 +950,7 @@ function renderStats() {
 // ------------------------------------------------------------------ parts list + export
 function exportList() {
   const list = [
-    ...(cfg.fitMode === "direct" ? [["topKey", 1]] : [["cassette", 1]]), ...(cfg.fitMode === "universal" && (cfg.cap.lock || "none") === "none" ? [["cassKey", 1]] : []), ["frame", 1], ...(cfg.cap.lock && cfg.cap.lock !== "none" ? [["cap", 1]] : []), ["ring1", 1],
+    ...(cfg.fitMode === "direct" ? [] : [["cassette", 1]]), ...(cfg.fitMode === "universal" && (cfg.cap.lock || "none") === "none" ? [["cassKey", 1]] : []), ["frame", 1], ...(cfg.cap.lock && cfg.cap.lock !== "none" ? [["cap", 1]] : []), ["ring1", 1],
   ];
   if (cfg.led.on) list.push(["diffuser", 1]);
   if (derive(cfg).dock) list.push(["dockClip", 1]);
@@ -1005,10 +1011,10 @@ function readme(sizes, projNotes = []) {
     if (!sizes[name]) continue;
     lines.push(`  ${String(qty).padStart(2)} x ${partLabel(name).padEnd(16)} ${sizes[name].map((v) => v.toFixed(0)).join(" x ")} mm   ${bedFor(name)}${PART_INFO[name].note ? "  (" + PART_INFO[name].note + ")" : ""}`);
   }
-  if (cfg.fitMode === "direct") lines.push("", "NO CASSETTE: the iPad slides face-forward straight into the slot; the frame lip covers " + cfg.cass.overlap + " mm of its black glass border.",
+  if (cfg.fitMode === "direct") lines.push("", "NO CASSETTE: the iPad slides face-forward through a slit in the top into its pocket; the frame lip covers " + cfg.cass.overlap + " mm of its black glass border.",
     "  Stick " + cfg.cass.liner + " mm felt or microfiber tape on the back of the lip so the glass never touches bare plastic. The slot fits this iPad without a case.",
     d.dock ? "  The USB-C plug stands fixed in the dock clip; the iPad plugs onto it as it slides down." : "  Use a right-angle USB-C cable whose plug fits in " + cfg.cass.portGap + " mm beside the port.",
-    "  The top key drops in after the iPad. To take the iPad out, lift the key by the grip on its back, then lift the iPad by its back edge from the finger dish.");
+    "  It goes in through a slit in the top just its own width. To take it out, lift it by its back edge from the finger dish behind the slit.");
   else if (cfg.fitMode === "hug") lines.push("", "BEZEL LOCK: the iPad lies face-forward in the tray; the frame lip covers " + cfg.cass.overlap + " mm of its black glass border.",
     "  Stick " + cfg.cass.liner + " mm felt or microfiber tape on the back of the lip so the glass never touches bare plastic.",
     d.dock ? "  The USB-C plug stands fixed in the dock clip; the iPad plugs onto it as the cassette drops in." : "  Use a right-angle USB-C cable whose plug fits in " + cfg.cass.portGap + " mm beside the port; the cable exits backward through the tray.");
@@ -1074,7 +1080,7 @@ function readme(sizes, projNotes = []) {
   if (mt === "tripod") A.push("Screw the drum to ring 1 from inside. Epoxy and pin the ferrules onto the dowels, then thread them into the drum.");
   if (mt === "post") A.push("Screw the post cap to ring 1 from inside. Build the base (see the page's guide), screw on the flange, put the pole in both, snug the thumb screws.");
   if (mt === "wall") A.push("Drill two level holes, screws 3 mm proud. Hang the case: heads into the round holes, then slide down.");
-  if (cfg.fitMode === "direct") A.push(`Felt on the back of the lip. ${dk ? "Slide the iPad down into the slot, screen forward: the plug goes in by itself." : "Plug in, then slide the iPad down into the slot, screen forward."} Drop in the top key. To take the iPad out, lift the key, then the iPad by its back edge from the finger dish.`);
+  if (cfg.fitMode === "direct") A.push(`Felt on the back of the lip. ${dk ? "Slide the iPad down through the slit in the top, screen forward: the plug goes in by itself." : "Plug in, then slide the iPad down through the slit in the top, screen forward."} To take it out, lift it by its back edge from the finger dish.`);
   else A.push(`Felt on the back of the lip. ${dk ? "iPad face-down in the tray, then slide the cassette down: the plug goes in by itself." : "iPad in the tray, plug in, then slide the cassette down until flush."} Lift it out by the finger scoop.`);
   A.forEach((t, i) => lines.push(`  ${i + 1}. ${t}`));
   { const byColor = new Map();

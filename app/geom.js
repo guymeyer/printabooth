@@ -8,7 +8,7 @@ export const DEFAULTS = {
   camSide: "left",
   fit: 0.8,
   fitMode: "universal",            // "universal" = one square cassette size fits most; "hug" = shell sized to this tablet;
-                                   // "direct" = no cassette: the iPad slides straight into a slot sized to it, a top key closes it
+                                   // "direct" = no cassette: the iPad slips in through a slit in the top into a pocket sized to it
   cass: { size: 270, t: 12, mask: 2, back: 2.4, overlap: 5, liner: 0.5, portGap: 9, portSide: "auto", bumpCorner: "pair" },
   shell: { cornerR: 33, frameD: 20, lip: 2, wall: 4, ringD: 50, ring1D: 85, nExt: 1, join: "glue" },   // join: "glue" | "screws"
   // one continuous strip: starts at the top of the feed side (its lead goes straight back into the box), runs down, across the
@@ -190,7 +190,6 @@ export const PART_INFO = {
   diffuser: { label: "LED diffuser", printer: "XL", note: "Translucent PETG" },
   cap: { label: "Top cap", printer: "XL" },
   cassKey: { label: "Cassette top key", printer: "Core One", note: "Drops in after the iPad" },
-  topKey: { label: "Top key", printer: "XL", note: "Drops in after the iPad" },
   ring1: { label: "Ring 1", printer: "XL", note: "Includes the cassette stop" },
   ringExt: { label: "Extension ring A", printer: "XL" },
   ringExt2: { label: "Extension ring B", printer: "XL" },
@@ -383,6 +382,7 @@ export function derive(c) {
       : notchSpec(cam, [0, 0], [((land ? tb.sw : tb.sh) + 2) / 2, ((land ? tb.sh : tb.sw) + 2) / 2], [0, 0], [pw / 2 - f, ph / 2 - f]),
     // direct: the finger dish in ring 1 reaches 6 mm below the iPad's top edge, so a finger can lift the iPad by its back
     dishDepth: direct ? Math.max(DISH.depth, Sy - (ipadOff[1] - chanClr + ph / 2) + 6) : DISH.depth,
+    ipadTop: ipadOff[1] - chanClr + ph / 2,                                  // the iPad pocket's top edge (world y)
     fd, glue, lip, capless, yS, rCass, rSlot, land, hug, direct, pw, ph, iw, ih, Cw, Ch, cassT, cassZ, tabletZ, ipadOff, Sw, Sh, Sx, Sy, R, innerX, innerY, offX, A, B,
     chanClr, chW, chH, chZ1, winW, winH, winR, winC, cam, camShell: [cam[0], cam[1] - chanClr], bezel,
     thrMajor: legThread(c), thrPitch: 4, seat: 30, tabLen, ...mainShell(c, fd, glue ? chZ1 - 0.05 - fd : 0),
@@ -758,14 +758,6 @@ export function makeEngine(wasm) {
     return sub(inter(bar, cassetteTop(d, t)), dishLocalCassette(d));
   }
 
-  // top key (no-cassette fit): fills the slot above the iPad and carries the accent band, flush with the top; it drops in after
-  // the iPad, keeps it from lifting, and lifts out by the grip on its back. Cassette-local, like the tray it replaces.
-  function topKey(c) {
-    const d = derive(c), t = d.cassT, k = 0.15, top = d.ipadOff[1] + d.ph / 2 + 0.3;
-    const body = add(cassetteOutline(d, t, d.rCass), cassetteBand(d, t));
-    return sub(inter(body, box(-3000, 3000, top, 3000, k, t - k)), dishLocalCassette(d));
-  }
-
   // ------------------------------------------------------------ LED
   function ledRing(c, z0, z1, extra, endGap = 0) {
     const d = derive(c);
@@ -795,7 +787,9 @@ export function makeEngine(wasm) {
     const { Sy, chW, chZ1 } = d, BIG = 2000;
     // split 0.05 mm in front of the slot's back face so the cut never lands on a coplanar face (avoids a paper-thin film)
     const bezel = inter(frameFull(c, false), box(-BIG, BIG, -BIG, BIG, -BIG, chZ1 - 0.05));
-    const tongue = d.capless
+    // no band at the top: the tongue runs all the way round, except over the slit (the camera bump slides down past it there)
+    const tongue = d.direct ? sub(lapTongue(d, c, chZ1 - 0.05), box(d.ipadOff[0] - d.pw / 2 - 1, d.ipadOff[0] + d.pw / 2 + 1, d.ipadTop, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1))
+      : d.capless
       ? sub(lapTongue(d, c, chZ1 - 0.05), box(-BIG, BIG, d.yS - 0.15, BIG, chZ1 - 1, chZ1 + LAP.len + 1))
       : sub(lapTongue(d, c, chZ1 - 0.05), box(-chW / 2 - 0.5, chW / 2 + 0.5, 0, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1));
     let tg = tongue;
@@ -844,7 +838,10 @@ export function makeEngine(wasm) {
     const cuts = [
       mv(rr(d.winW, d.winH, d.winR, -1, lip + 0.01), d.winC[0], d.winC[1]),
       rr(chW, chH, d.rSlot, lip, chZ1),
-      box(-chW / 2, chW / 2, 0, Sy + 5, lip, chZ1),
+      // the slot opens up through the top: full width for a cassette; with no cassette only a slit the iPad's own width
+      // (pocket + fit) above its top edge, so the shell fills the rest, plug room included
+      ...(d.direct ? [box(-chW / 2, chW / 2, 0, d.ipadTop, lip, chZ1), box(d.ipadOff[0] - d.pw / 2, d.ipadOff[0] + d.pw / 2, 0, Sy + 5, lip, chZ1)]
+        : [box(-chW / 2, chW / 2, 0, Sy + 5, lip, chZ1)]),
       rr(Cw - 26, Ch - 26, 14, chZ1 - 0.01, fd + 1),
       box(-chW / 2, -(Cw / 2 - 35), -14, 14, chZ1 - 0.01, fd + 1),
       box(Cw / 2 - 35, chW / 2, -14, 14, chZ1 - 0.01, fd + 1),
@@ -855,7 +852,7 @@ export function makeEngine(wasm) {
       box(-TAB.x1 - 0.3, -TAB.x0 + 0.3, Sy - 4, Sy + 1, chZ1, fd + 1),
       T(T(scoopCS(d).extrude(fd - chZ1 + 1.01)).translate([0, 0, chZ1 - 0.01])));
     // the shell's slot walls stop at the shoulders; the cassette's band sits on them (the lip in front stays whole)
-    if (d.capless) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
+    if (d.capless && !d.direct) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
     if (c.led.on) {
       // one unbroken channel (and diffuser recess) round the U up to the end bays, the bays as tunnels under the face, and the
       // feed slot from the feed side's bay back into the box
@@ -1304,7 +1301,7 @@ export function makeEngine(wasm) {
   }
 
   const BUILDERS = {
-    cassette, cassKey, topKey, frame, cap, diffuser, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
+    cassette, cassKey, frame, cap, diffuser, back, hub, ferrule, wallCase, wallBack, postCap, flange, dockClip, threadTest,
     ring1: (c) => ring(c, true),
     ringExt: (c) => ring(c, false, c.shell.join === "screws"),
     ringExt2: (c) => ring(c, false, false),
@@ -1316,7 +1313,6 @@ export function makeEngine(wasm) {
   const KEYS = {
     cassette: (c) => [c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).Cw, derive(c).lip, derive(c).dock, derive(c).Ch],
     cassKey: (c) => [c.tablet, c.orientation, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).lip],
-    topKey: (c) => [dims(c), c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.dock],
     frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode !== "universal" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
     cap: (c) => [dims(c), c.fitMode, c.cass, c.tablet.t, c.shell, c.cap, c.inserts],
     diffuser: (c) => [dims(c), c.shell.cornerR, c.led],
@@ -1423,7 +1419,7 @@ export const place = (m, it) => (it.spin ? m.rotate([0, 0, 180]) : m).translate(
 export function assembly(c) {
   const d = derive(c), fd = d.fd, D = c.shell.ringD, D1 = d.D1;
   const items = [
-    { part: d.direct ? "topKey" : "cassette", pos: [0, -d.chanClr, d.cassZ] },
+    ...(d.direct ? [] : [{ part: "cassette", pos: [0, -d.chanClr, d.cassZ] }]),
     ...(d.capless && !d.hug ? [{ part: "cassKey", pos: [0, -d.chanClr, d.cassZ] }] : []),
     { part: "frame", pos: [0, 0, 0] },
     ...(d.capless ? [] : [{ part: "cap", pos: [0, 0, 0] }]),

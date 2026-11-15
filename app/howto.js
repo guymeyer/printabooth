@@ -301,15 +301,13 @@ export function howtoBody(info) {
   step(head(O, sz, full) + magnify(...pt(O, 12, 40), 256, 72, 44, P("M-46 -46h28v92h-28z") + P(rr(-18, -32, 8, 64, 2)) + P(rr(4, -32, 8, 64, 2), { dash: true, fill: "none" }) + arrow(2, 0, -8, 0)) +
     tag(256, 140, `felt ${info.liner} mm`), "Felt strip on the back of the lip, all round the window");
   if (info.direct) {
-    // no cassette: the iPad goes straight into the slot from the top, then the top key closes it
+    // no cassette: the iPad goes straight in through the slit in the top
     const tb = iso(O, 6, -44, 2);
     step(tablet(tb, HW - 12, HH - 14, { dash: true }) + head(O, sz, full) + arrow(...dz(pt(O, HW / 2, -40), 4), ...dz(pt(O, HW / 2, -8), 4)) +
       (info.dock ? magnify(...pt(O, HW / 2, HH - 10), 260, 182, 34, P("M-34 -2h68v12h-68z") + P(rr(-5, -26, 10, 22, 2), { w: 1.6 }) + arrow(0, -40, 0, -26) + check(20, -16, 0.8))
         : plug(232, 190, 0) + pip(284, 228, { pose: "point", face: -1, s: 0.8 })),
-      info.dock ? "Slide the iPad down into the slot, screen forward; it plugs itself in" : "Plug in, then slide the iPad down into the slot, screen forward");
-    const kt = iso(O, 4, -34, 2);
-    step(head(O, sz, full, { screen: true }) + box(kt, HW - 8, 8, 6, 3, { dash: true }) + arrow(...dz(pt(O, HW / 2, -28), 3), ...dz(pt(O, HW / 2, -6), 3)) + check(270, 64) + pip(284, 228, { pose: "push", face: -1, s: 0.8 }),
-      "Drop in the top key");
+      info.dock ? "Slide the iPad down through the slit, screen forward; it plugs itself in" : "Plug in, then slide the iPad down through the slit, screen forward");
+
   } else {
   { const co = centred(HW - 16, HH - 6, 4, 128, 150), tb = iso(co, 12, -64, 0);
     step(cassette(co, HW - 16, HH - 6) + tablet(tb, HW - 40, HH - 30, { dash: true }) + arrow(...pt(tb, (HW - 40) / 2, HH - 24), ...pt(co, (HW - 16) / 2 - 8, 12)) +
@@ -324,7 +322,7 @@ export function howtoBody(info) {
     const o0 = centred(HW, HH, depthOf(full), 0, 0), top = iso(o0, HW / 2, -4, 4), mid = iso(o0, HW / 2, HH / 2, 0);
     step(G(head(o0, sz, full, { screen: true }) + mitt(top) + arrow(top[0], top[1] - 10, top[0], top[1] - 46), "translate(86 140) scale(0.55)") + check(140, 54) +
       G(head(o0, sz, full, { screen: true }) + mitt(mid) + arrow(mid[0], mid[1] - 10, mid[0], top[1] - 46), "translate(232 140) scale(0.55)") + cross(290, 54),
-      info.direct ? "Lift the key out, then the iPad by its back edge from the finger scoop, never by the screen" : "Lift it out by the finger scoop, never by the screen"); }
+      info.direct ? "Lift it out by its back edge from the finger scoop, never by the screen" : "Lift it out by the finger scoop, never by the screen"); }
   step(head(at(full, 118, 124), sz, full, { screen: true, led: info.led }) + pip(270, 222, { pose: "up", mood: "o" }) + rays(270, 98) + rays(118, 40, 1.2), "Done. Smile.");
 
   return `<section class="pg"><h2>Before you start</h2><div class="grid">${start.join("")}</div></section>` +
