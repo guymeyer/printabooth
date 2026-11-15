@@ -18,20 +18,28 @@ const T = (x, y, s, o = {}) => `<text x="${n1(x)}" y="${n1(y)}" font-size="${o.s
 const rr = (x, y, w, h, r) => { r = Math.min(r, w / 2, h / 2); return `M${n1(x + r)} ${n1(y)}h${n1(w - 2 * r)}a${r} ${r} 0 0 1 ${r} ${r}v${n1(h - 2 * r)}a${r} ${r} 0 0 1 -${r} ${r}h-${n1(w - 2 * r)}a${r} ${r} 0 0 1 -${r} -${r}v-${n1(h - 2 * r)}a${r} ${r} 0 0 1 ${r} -${r}z`; };
 const G = (s, tf) => `<g transform="${tf}">${s}</g>`;
 
-// three-quarter view: depth runs up and to the right, the same in every frame
-const OX = 0.55, OY = -0.4;
-const off = (z) => [z * OX, z * OY];
-// a block with a rounded front face; depth d. o.dash draws it as a previous/future position
-function block(x, y, w, h, d, r, o = {}) {
-  const [dx, dy] = off(d), k = r * 0.29, s = { dash: o.dash, fill: o.dash ? "none" : W };
-  return P(rr(x + dx, y + dy, w, h, r), s) +
-    L(x + k, y + k, x + k + dx, y + k + dy, { dash: o.dash }) + L(x + w - k, y + k, x + w - k + dx, y + k + dy, { dash: o.dash }) +
-    L(x + w - k, y + h - k, x + w - k + dx, y + h - k + dy, { dash: o.dash }) + P(rr(x, y, w, h, r), s);
+// Isometric, after the isometric-design reference: a parallel projection with the axes 120 degrees apart, the same in every
+// frame; text stays flat to the page. 3D here: x right, y down, z into the page (depth). The view is from above, right and in
+// front, so the front, top and right faces show. (Its hard drop shadows and colour palette are left out: the style guide wins.)
+const CX = Math.sqrt(3) / 2, SX = 0.5;
+const iso = (o, x, y, z) => [o[0] + CX * (x + z), o[1] + SX * (x - z) + y];
+// keep one stroke weight through skews and scales
+const nss = (s) => s.replace(/<(path|line|circle|ellipse|polyline) (?!vector-effect)/g, '<$1 vector-effect="non-scaling-stroke" ');
+// flat 2D artwork laid onto a plane of the model
+const onFront = (o, z, s) => { const [e, f] = iso(o, 0, 0, z); return `<g transform="matrix(${n1(CX * 1000) / 1000} ${SX} 0 1 ${n1(e)} ${n1(f)})">${nss(s)}</g>`; };          // 2D (x, y)
+const onTop = (o, y, s) => { const [e, f] = iso(o, 0, y, 0); return `<g transform="matrix(${n1(CX * 1000) / 1000} ${SX} ${n1(CX * 1000) / 1000} ${-SX} ${n1(e)} ${n1(f)})">${nss(s)}</g>`; };   // 2D (x, z)
+// a box w x h, d deep, rounded front corners r, front top-left corner at screen point o. dash: previous or future position
+function box(o, w, h, d, r, opt = {}) {
+  const dash = opt.dash, fill = dash ? "none" : W, k = Math.min(r, w / 2, h / 2) * (1 - Math.SQRT1_2);
+  const a = iso(o, k, k, 0), b = iso(o, k, k, d), c = iso(o, w - k, h - k, d), e = iso(o, w - k, h - k, 0);
+  return nss(onFront(o, d, P(rr(0, 0, w, h, r), { dash, fill })) +
+    (dash ? "" : `<path d="M${a.map(n1).join(" ")}L${b.map(n1).join(" ")}L${c.map(n1).join(" ")}L${e.map(n1).join(" ")}z" fill="${W}"/>`) +
+    L(a[0], a[1], b[0], b[1], { dash }) + L(e[0], e[1], c[0], c[1], { dash }) + onFront(o, 0, P(rr(0, 0, w, h, r), { dash, fill }) + (opt.face || "")));
 }
-// an upright cylinder seen from the same angle (top ellipse at y, height h)
-function cyl(cx, y, rx, h, o = {}) {
-  const ry = rx * 0.38, s = { dash: o.dash, fill: o.dash ? "none" : W };
-  return P(`M${cx - rx} ${y}v${h}a${rx} ${ry} 0 0 0 ${2 * rx} 0v-${h}`, s) + E(cx, y, rx, ry, s);
+// upright cylinder: p = screen centre of its top, radius r, height h; top = 2D art on the top face (coords about the centre)
+function cyl(p, r, h, opt = {}) {
+  const rx = r * 1.2247, ry = r * 0.7071, s = { dash: opt.dash, fill: opt.dash ? "none" : W };
+  return nss(P(`M${n1(p[0] - rx)} ${n1(p[1])}v${h}a${n1(rx)} ${n1(ry)} 0 0 0 ${n1(2 * rx)} 0v-${h}`, s) + E(p[0], p[1], rx, ry, s) + (opt.top ? onTop(p, 0, opt.top) : ""));
 }
 
 // ---------------------------------------------------------------- symbols (one weight, one family)
@@ -110,39 +118,43 @@ function pip(x, y, o = {}) {
 }
 
 // ---------------------------------------------------------------- objects (same proportions in every frame)
-// booth head: front at (x, y); layers listed front to back: { d, gap, dash, kind: "frame"|"ring"|"plate" }
-function head(x, y, sz, layers, o = {}) {
-  const { w, h } = sz, R = 16;
-  let z = 0, out = [];
+// booth head: front top-left corner at screen point o; layers front to back { d, gap, dash, kind: frame|ring|plate }
+const HR = 14;
+const ledU = (w, h, inset = 6, top = 0.3) => `M${inset} ${n1(h * top)}V${n1(h - inset - 8)}a8 8 0 0 0 8 8H${n1(w - inset - 8)}a8 8 0 0 0 8 -8V${n1(h * top)}`;
+function head(o, sz, layers, opt = {}) {
+  const { w, h } = sz; let z = 0; const out = [];
   layers.forEach((l) => { z += l.gap || 0; out.push({ ...l, z }); z += l.d; });
   let s = "";
   for (const l of out.slice().reverse()) {
-    const [dx, dy] = off(l.z), X = x + dx, Y = y + dy;
-    s += block(X, Y, w, h, l.d, R, { dash: l.dash });
+    const oz = iso(o, 0, 0, l.z);
+    let face = "";
     if (l.kind === "frame") {
-      if (o.slot !== false) { const [a, b] = off(2), [c, d2] = off(7); s += P(`M${X + 15 + a} ${Y + b}L${X + w - 15 + a} ${Y + b}L${X + w - 15 + c} ${Y + d2}L${X + 15 + c} ${Y + d2}z`, { w: 1.8, dash: l.dash }); }
-      s += P(rr(X + 13, Y + 13, w - 26, h - 30, 6), { dash: l.dash, fill: l.dash ? "none" : W });
-      if (o.screen) s += P(rr(X + 17, Y + 17, w - 34, h - 38, 3), { w: 1.6 }) + C(X + w / 2, Y + 15, 1.4, { fill: K, w: 0 });
-      if (o.led) s += `<path d="${ledU(X, Y, w, h)}" fill="none" stroke="${ACC}" stroke-width="4" stroke-linecap="round"/>`;
+      face += P(rr(12, 12, w - 24, h - 27, 5), { dash: l.dash, fill: l.dash ? "none" : W });
+      if (opt.screen) face += P(rr(16, 16, w - 32, h - 35, 3), { w: 1.6 });
+      if (opt.led) face += `<path d="${ledU(w, h)}" fill="none" stroke="${ACC}" stroke-width="4" stroke-linecap="round"/>`;
+      if (opt.ledPath) face += opt.ledPath;
     }
+    s += box(oz, w, h, l.d, HR, { dash: l.dash, face });
+    if (l.kind === "frame" && opt.slot !== false) s += onTop(oz, 0, P(rr(14, 1.5, w - 28, 4, 2), { w: 1.8, dash: l.dash }));
   }
   return s;
 }
-const ledU = (X, Y, w, h, inset = 6.5, top = 0.32) => `M${X + inset} ${Y + h * top}V${Y + h - inset - 9}a9 9 0 0 0 9 9H${X + w - inset - 9}a9 9 0 0 0 9 -9V${Y + h * top}`;
-const headSize = (info) => (info.orient === "portrait" ? { w: 92, h: 126 } : { w: 136, h: 98 });
-// standard stacks
-const frameL = (o = {}) => ({ d: 8, kind: "frame", ...o });
-const ring1L = (o = {}) => ({ d: 30, kind: "ring", ...o });
-const ringL = (o = {}) => ({ d: 18, kind: "ring", ...o });
-const backL = (o = {}) => ({ d: 4, kind: "plate", ...o });
-// cassette with the iPad in it, front at (x, y)
-const cassette = (x, y, w, h, o = {}) => block(x, y, w, h, 5, 10, o) + (o.dash ? "" : P(rr(x + 6, y + 8, w - 12, h - 16, 4), { w: 1.6 }));
-const tablet = (x, y, w, h, o = {}) => P(rr(x, y, w, h, 7), o) + P(rr(x + 5, y + 5, w - 10, h - 10, 3), { w: 1.4, dash: o.dash, fill: "none" });
-// hub drum, tripod legs, post, base board
-const drum = (cx, y, rx = 34, hh = 22) => cyl(cx, y, rx, hh);
+const headSize = (info) => (info.orient === "portrait" ? { w: 80, h: 112 } : { w: 120, h: 86 });
+const frameL = (o = {}) => ({ d: 6, kind: "frame", ...o });
+const ring1L = (o = {}) => ({ d: 22, kind: "ring", ...o });
+const ringL = (o = {}) => ({ d: 13, kind: "ring", ...o });
+const backL = (o = {}) => ({ d: 3, kind: "plate", ...o });
+const depthOf = (layers) => layers.reduce((a, l) => a + (l.gap || 0) + l.d, 0);
+// the origin that centres a box (w, h, depth D) on screen point (cx, cy)
+const centred = (w, h, D, cx, cy) => [cx - CX * (w + D) / 2, cy - (h + SX * w - SX * D) / 2];
+// cassette with the iPad (front plane), its front top-left corner at o
+const cassette = (o, w, h, opt = {}) => box(o, w, h, 4, 9, { dash: opt.dash, face: opt.dash ? "" : P(rr(6, 7, w - 12, h - 14, 4), { w: 1.6 }) });
+const tablet = (o, w, h, opt = {}) => onFront(o, 0, P(rr(0, 0, w, h, 7), { dash: opt.dash, fill: opt.dash ? "none" : W }) + P(rr(5, 5, w - 10, h - 10, 3), { w: 1.4, dash: opt.dash, fill: "none" }));
 const leg = (x1, y1, x2, y2) => L(x1, y1, x2, y2, { w: 11 + 2 * SW }) + L(x1, y1, x2, y2, { w: 11, stroke: W });
-const board = (x, y, w, t, d) => block(x, y, w, t, d, 2);
-const pole = (cx, y0, y1, r = 6) => P(`M${cx - r} ${y0}V${y1}M${cx + r} ${y0}V${y1}`, { fill: "none" });
+const board = (o, w, t, d) => box(o, w, t, d, 2);
+const poleV = (cx, y0, y1, r = 7) => `<rect x="${n1(cx - r)}" y="${n1(y0)}" width="${2 * r}" height="${n1(y1 - y0)}" fill="${W}" ${st({})}/>`;
+// along the depth axis (screen direction of +z), for arrows that push parts together
+const dz = (p, z) => [p[0] + CX * z, p[1] - SX * z];
 
 // tools and hardware: plain silhouettes in the same line
 const glue = (x, y) => P(rr(x - 8, y - 18, 16, 30, 4)) + P(`M${x - 5} ${y - 18}l5 -12l5 12z`) + P(`M${x} ${y - 30}v-6`, { fill: "none" });
@@ -172,11 +184,15 @@ const frame = (label, body, alt) => `<figure class="st"${label ? "" : ' data-n="
 
 export function howtoBody(info) {
   clipN = 0;
-  const sz = headSize(info), HX = 60, HY = 86, wall = info.mount === "wall", post = info.mount === "post", tri = !wall && !post;
-  const HW = sz.w, HH = sz.h, cx = HX + HW / 2;
+  const sz = headSize(info), wall = info.mount === "wall", post = info.mount === "post", tri = !wall && !post;
+  const HW = sz.w, HH = sz.h;
   const shell = [frameL(), ring1L(), ...Array(info.nExt).fill(0).map(() => ringL()), backL()];
-  const wallShell = [frameL(), { d: 16, kind: "ring" }, backL()];
-  const full = wall ? wallShell : shell;
+  const full = wall ? [frameL(), { d: 14, kind: "ring" }, backL()] : shell;
+  const pair = [frameL(), full[1]];
+  // the head's place in most frames: centred left of the middle, room for Pip on the right
+  const at = (layers, cx = 132, cy = 124) => centred(HW, HH, depthOf(layers), cx, cy);
+  const O = at(full), O2 = at(pair);
+  const pt = (o, x, y, z = 0) => iso(o, x, y, z);
 
   // ---- before you start
   const start = [];
@@ -184,7 +200,7 @@ export function howtoBody(info) {
   start.push(frame("", hw.slice(0, 8).map((it, i) => {
     const x = 44 + (i % 4) * 77, y = 70 + Math.floor(i / 4) * 100;
     const icon = { insert: insert(x, y), screw: screw(x, y - 12, 22), dowel: dowel(x - 26, y, 52), pole: P(`M${x - 28} ${y}h56`, { fill: "none", w: 12 + 2 * SW }) + P(`M${x - 28} ${y}h56`, { fill: "none", w: 12, stroke: W }),
-      strip: strip(x - 28, y, 56), usb: usbBox(x - 10, y), charger: charger(x, y), zip: zip(x - 10, y), felt: felt(x - 28, y, 56), plywood: board(x - 30, y + 2, 44, 7, 22), anchor: screw(x, y - 12, 18) }[it.icon] || "";
+      strip: strip(x - 28, y, 56), usb: usbBox(x - 10, y), charger: charger(x, y), zip: zip(x - 10, y), felt: felt(x - 28, y, 56), plywood: board([x - 30, y - 4], 44, 6, 26), anchor: screw(x, y - 12, 18) }[it.icon] || "";
     const k = ["dowel", "pole", "strip", "felt", "plywood", "usb"].includes(it.icon) ? 0.95 : it.icon === "charger" ? 0.9 : 1.45;
     return G(icon, `translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})`) + count(x, y + 42, it.n) + (it.tag ? T(x, y + 58, it.tag, { size: 11, weight: 500 }) : "");
   }).join(""), "Hardware you need"));
@@ -198,88 +214,93 @@ export function howtoBody(info) {
   const xl = info.parts.filter((p) => p[2] === "XL"), co = info.parts.filter((p) => p[2] !== "XL");
   const thumbs = (list, x0) => list.slice(0, 6).map(([lab, q], i) => P(rr(x0 + (i % 3) * 30, 158 + Math.floor(i / 3) * 30, 24, 22, 4), { w: 1.8 }) + (q > 1 ? T(x0 + 12 + (i % 3) * 30, 173 + Math.floor(i / 3) * 30, `${q}×`, { size: 10 }) : "")).join("");
   pr.push(frame("A", printer(40, 38) + tag(88, 140, "XL") + thumbs(xl, 44) + printer(186, 38) + tag(234, 140, "Core One") + thumbs(co, 190) + T(160, 230, `${info.nozzle} mm · ${info.material}`, { size: 12, weight: 500 }), "Which parts go on which printer"));
-  if (info.backHoles) pr.push(frame("B", P(rr(70, 120, 70, 70, 8)) + C(105, 155, 14) + C(105, 155, 9, { dash: "2 2", w: 1.4 }) + screw(105, 46, 52) + turn(105, 70, 22) + check(186, 150) + pip(262, 214, { pose: "point", face: -1 }),
-    "Print the thread test coupon first and try a screw in it"));
-  pr.push(frame(info.backHoles ? "C" : "B", P("M24 182h168v12h-168z") + block(60, 104, 92, 70, 26, 14) + arrow(106, 50, 106, 96) + check(214, 120) +
-    G(block(0, 0, 40, 30, 10, 6) + L(-6, 44, 56, 44, { w: 2 }), "translate(232 150)") + G(cross(0, 0), "translate(296 170)") , "Print each part flat on its face, no supports"));
+  if (info.backHoles) { const c0 = centred(60, 8, 60, 112, 160);
+    pr.push(frame("B", box(c0, 60, 8, 60, 3) + onTop(c0, 0, C(30, 30, 9) + C(30, 30, 5.5, { dash: "2 2", w: 1.4 })) + screw(pt(c0, 30, 0, 30)[0], 44, 54) + turn(pt(c0, 30, 0, 30)[0], 66, 22) +
+      check(196, 140) + pip(268, 214, { pose: "point", face: -1 }), "Print the thread test coupon first and try a screw in it")); }
+  { const bo = centred(150, 8, 100, 118, 168), po = pt(bo, 40, -34, 30);
+    pr.push(frame(info.backHoles ? "C" : "B", board(bo, 150, 8, 100) + box(po, 64, 34, 44, 8) + arrow(pt(po, 32, 0, 22)[0], 34, pt(po, 32, 0, 22)[0], pt(po, 32, 0, 22)[1] - 18) + check(226, 70) +
+      G(box([0, 0], 22, 36, 12, 4) + L(-4, 44, 40, 44, { w: 2 }) + L(4, 44, 4, 38, { dash: "2 3", w: 1.4 }) + L(14, 44, 14, 40, { dash: "2 3", w: 1.4 }), "translate(250 120)") + cross(298, 120), "Print each part flat on its face, no supports")); }
 
   // ---- build
   const b = [];
   const step = (body, alt) => b.push(frame(String(b.length + 1), body, alt));
-  const nIns = (wall ? 0 : 4);
-  if (nIns) step((post ? cyl(130, 108, 56, 30) + [[-26, -6], [26, -6], [-26, 8], [26, 8]].map(([dx, dy]) => C(130 + dx, 108 + dy, 3.5)).join("")
-      : drum(130, 108, 56, 30) + [[-26, -6], [26, -6], [-26, 8], [26, 8]].map(([dx, dy]) => C(130 + dx, 108 + dy, 3.5)).join("")) +
-    insert(104, 74) + iron(102, 54, -60) + arrow(104, 84, 104, 98) + count(46, 52, 4) +
-    magnify(156, 102, 250, 70, 40, P("M-40 4h80v40h-80z") + P("M-6 4v20h12v-20", { fill: "none" }) + insert(0, 9) + check(22, -14, 0.8)), `${post ? "Post cap" : "Base"}: press 4 inserts in with the soldering iron, flush`);
-  if (info.dock) step(head(HX, HY, sz, [frameL()], { slot: true }) + magnify(cx, HY + HH - 8, 248, 70, 44,
-      P("M-44 10h88v40h-88z") + insert(-18, 16) + insert(18, 16) + iron(-10, -14, -60)) + count(220, 140, 2),
+  const holes4 = [[-26, -12], [26, -12], [-26, 12], [26, 12]];
+  if (!wall) { const p = [118, 104];
+    step(cyl(p, 44, 30, { top: holes4.map(([x, z]) => C(x, z, 3.5)).join("") }) + insert(p[0] - 30, 62) + iron(p[0] - 32, 42, -60) + arrow(p[0] - 30, 74, p[0] - 30, 92) + count(46, 52, 4) +
+      magnify(...iso(p, 26, 0, 12), 252, 70, 40, P("M-40 4h80v40h-80z") + P("M-6 4v20h12v-20", { fill: "none" }) + insert(0, 9) + check(22, -14, 0.8)),
+      `${post ? "Post cap" : "Base"}: press 4 inserts in with the soldering iron, flush`); }
+  if (info.dock) step(head(O2, sz, [frameL()]) + magnify(...pt(O2, HW / 2, HH - 8), 252, 64, 42, P("M-44 10h88v40h-88z") + insert(-18, 16) + insert(18, 16) + iron(-10, -14, -60)) + count(230, 132, 2),
     "Slot floor: 2 short inserts for the dock clip");
-  // glue the frame on
-  step((
-    head(HX + 20, HY - 14, sz, [frameL({ dash: true }), { ...full[1] }]) + G(head(0, 0, sz, [frameL()], { slot: false }), `translate(${HX - 34} ${HY + 26})`) +
-    arrow(HX - 20, HY + 16, HX + 8, HY - 4) + glue(284, 166) + drop(268, 132) + drop(258, 146)), wall ? "Glue the frame onto the wall case" : "Glue the frame onto ring 1");
+  // frame onto ring 1 (or the wall case): frame slides along the depth axis into place
+  { const oF = iso(O2, 0, 0, -44);
+    step(head(O2, sz, [frameL({ dash: true }), full[1]]) + head(oF, sz, [frameL()], { slot: false }) + arrow(...dz(pt(oF, HW, 20, 6), 2), ...dz(pt(oF, HW, 20, 6), 30)) +
+      glue(288, 176) + drop(272, 142) + drop(262, 156), wall ? "Glue the frame onto the wall case" : "Glue the frame onto ring 1"); }
   if (info.led) {
-    const right = info.ledFeed === "right";
-    const sx = right ? HX + HW - 6.5 : HX + 6.5, ex = right ? HX + 6.5 : HX + HW - 6.5, yt = HY + HH * 0.32;
-    step(head(HX, HY, sz, [frameL(), full[1]]) + `<path d="${ledU(HX, HY, HW, HH)}" fill="none" stroke="${K}" stroke-width="2" stroke-dasharray="3 3"/>` +
-      `<path d="${ledU(HX, HY, HW, HH)}" fill="none" stroke="${ACC}" stroke-width="4" stroke-linecap="round"/>` +
-      plug(sx + (right ? 16 : -16), yt - 26, right ? 30 : -30) + arrow(sx + (right ? 22 : -22), yt - 4, sx + (right ? 4 : -4), yt + 6, right ? 0.3 : -0.3) +
-      arrow(sx, yt + 14, sx, yt + 44) + scissors(ex, yt - 8) + (info.ledLeds ? tag(250, 32, `${info.ledLeds} LEDs · ${info.ledMM} mm`) : "") +
-      pip(282, 228, { pose: "point", face: -1, s: 0.86 }), `One LED strip: start at the top ${info.ledFeed} with its plug into the box, lay it down, across and up, cut at the other top`);
-    step(head(HX, HY, sz, [frameL(), full[1]], { led: true }) + G(`<path d="${ledU(0, 0, HW, HH)}" fill="none" stroke="${K}" stroke-width="7" stroke-linecap="round"/><path d="${ledU(0, 0, HW, HH)}" fill="none" stroke="${W}" stroke-width="3" stroke-linecap="round"/>`, `translate(${HX - 26} ${HY + 20})`) +
-      arrow(HX - 10, HY + HH * 0.6, HX + 4, HY + HH * 0.56) + arrow(cx - 26, HY + HH + 18, cx - 14, HY + HH + 6) + check(282, 70), "Press in the diffuser");
+    const right = info.ledFeed === "right", xs = right ? HW - 6 : 6, xe = right ? 6 : HW - 6, yt = HH * 0.3;
+    const s0 = pt(O2, xs, yt), e0 = pt(O2, xe, yt);
+    step(head(O2, sz, pair, { ledPath: `<path d="${ledU(HW, HH)}" fill="none" stroke="${ACC}" stroke-width="4" stroke-linecap="round"/>` }) +
+      plug(s0[0] - 16, s0[1] - 24, -30) + arrow(s0[0] - 10, s0[1] - 6, s0[0] - 1, s0[1] + 2) + arrow(...pt(O2, xs, yt + 10), ...pt(O2, xs, yt + 40)) + scissors(e0[0] + 4, e0[1] - 14) +
+      (info.ledLeds ? tag(246, 30, `${info.ledLeds} LEDs · ${info.ledMM} mm`) : "") + pip(284, 228, { pose: "point", face: -1, s: 0.82 }),
+      `One LED strip: start at the top ${info.ledFeed} with its plug into the box, lay it down, across and up, cut at the other top`);
+    const oD = iso(O2, 0, 0, -36);
+    step(head(O2, sz, pair, { led: true }) + onFront(oD, 0, `<path d="${ledU(HW, HH)}" fill="none" stroke="${K}" stroke-width="8" stroke-linecap="round"/><path d="${ledU(HW, HH)}" fill="none" stroke="${W}" stroke-width="3.6" stroke-linecap="round"/>`) +
+      arrow(...dz(pt(oD, 6, HH * 0.62), 4), ...dz(pt(oD, 6, HH * 0.62), 28)) + arrow(...dz(pt(oD, HW - 6, HH * 0.62), 4), ...dz(pt(oD, HW - 6, HH * 0.62), 28)) + check(286, 64), "Press in the diffuser");
   }
-  if (info.dock) step(head(HX, HY, sz, [frameL(), full[1]]) + magnify(cx, HY + HH - 8, 246, 82, 50,
+  if (info.dock) step(head(O2, sz, pair) + magnify(...pt(O2, HW / 2, HH - 8), 250, 78, 50,
       P("M-50 18h100v40h-100z") + P("M-12 -30h24v48h-24z") + P(rr(-6, -46, 12, 16, 2), { w: 1.6 }) + L(0, 18, 0, 40) + zip(-4, 26) +
-      screw(-26, -6, 20) + screw(26, -6, 20) + arrow(-26, -40, -26, -16) + arrow(26, -40, 26, -16)) + count(196, 150, 2) + tag(246, 160, "M3 × 8"),
+      screw(-26, -6, 20) + screw(26, -6, 20) + arrow(-26, -40, -26, -16) + arrow(26, -40, 26, -16)) + count(56, 56, 2) + tag(250, 160, "M3 × 8"),
     "Dock: plug in the clip, zip tie under it, 2 screws into the slot floor");
-  // rings and back
-  const gapArrows = (x0, y0, zs) => zs.map((z) => { const [a, b2] = off(z); return arrow(x0 + HW + a + 10, y0 + 30 + b2 - 6, x0 + HW + a + 2, y0 + 30 + b2); }).join("");
-  if (!wall && info.nExt > 0) step(head(HX - 24, HY + 14, sz, [frameL(), ring1L(), ...Array(info.nExt).fill(0).map(() => ringL({ gap: 14 })), backL({ gap: 14 })]) +
-    gapArrows(HX - 24, HY + 14, [38 + 14, 38 + 14 + 18 + 14].slice(0, info.nExt + 1)) + glue(292, 196) + drop(278, 162) + count(282, 52, info.nExt) + clockT(282, 96), "Glue each ring, then the back, one joint at a time");
-  else step(head(HX - 16, HY + 10, sz, [frameL(), full[1], backL({ gap: 18 })]) + gapArrows(HX - 16, HY + 10, [8 + full[1].d + 18]) + glue(292, 196) + drop(278, 162) + clockT(282, 96),
-    wall ? "Glue on the wall plate" : "Glue on the back");
+  // rings and back, one joint at a time: parts move forward along the depth axis
+  { const ex = wall ? [frameL(), full[1], backL({ gap: 18 })] : [frameL(), ring1L(), ...Array(info.nExt).fill(0).map(() => ringL({ gap: 16 })), backL({ gap: 16 })];
+    const oE = at(ex, 128, 126);
+    let z = 0; const arrows = [];
+    ex.forEach((l) => { if (l.gap) arrows.push(arrow(...dz(pt(oE, HW / 2, -8), z + l.gap - 2), ...dz(pt(oE, HW / 2, -8), z + 2))); z += (l.gap || 0) + l.d; });
+    step(head(oE, sz, ex) + arrows.join("") + glue(292, 196) + drop(278, 162) + (wall || !info.nExt ? "" : count(282, 40, info.nExt)) + clockT(282, 92),
+      wall ? "Glue on the wall plate" : info.nExt ? "Glue each ring, then the back, one joint at a time" : "Glue on the back"); }
 
   // ---- mount
-  const SH = 0.52;   // small head for mount frames
-  const smallHead = (x, y, o = {}) => G(head(0, 0, sz, full.map((l) => ({ ...l, d: l.d * 0.6 })), o), `translate(${x} ${y}) scale(${SH})`);
+  const small = (cx, cy, opt = {}) => { const k = 0.5, o = centred(HW, HH, depthOf(full), 0, 0); return G(head(o, sz, opt.dash ? full.map((l) => ({ ...l, dash: true })) : full, opt), `translate(${cx} ${cy}) scale(${k})`); };
   if (wall) {
-    step(`<rect x="48" y="26" width="252" height="174" fill="${W}" stroke="${K}" stroke-width="1.6"/>` + level(90, 90, 140) + L(110, 110, 210, 110, { dash: true, w: 1.8 }) +
-      C(110, 110, 4) + C(210, 110, 4) + dim(110, 132, 210, 132, `${info.keySpan} mm`) + drill(270, 112) +
-      magnify(210, 110, 250, 176, 24, L(-10, -24, -10, 24, { w: 3 }) + P("M-10 -2h14v4h-14z", { fill: K, w: 1 }) + P(rr(4, -7, 5, 14, 2)) + T(14, 20, "3", { size: 11 })),
+    const wo = [34, 16], wallPlane = onFront(wo, 0, P("M0 0h210v112h-210z", { w: 1.6 }));
+    const s1 = pt(wo, 50, 46), s2 = pt(wo, 150, 46);
+    step(wallPlane + onFront(wo, 0, P(rr(45, 24, 110, 10, 3)) + P(rr(91, 26, 18, 6, 3), { w: 1.4 }) + L(50, 46, 150, 46, { dash: true, w: 1.8 })) + C(...s1, 4) + C(...s2, 4) +
+      dim(s1[0] - 14, s1[1] + 22, s2[0] - 14, s2[1] + 22, `${info.keySpan} mm`) + drill(60, 196) +
+      magnify(...s2, 270, 196, 26, L(-10, -26, -10, 26, { w: 3 }) + P("M-10 -2h14v4h-14z", { fill: K, w: 1 }) + P(rr(4, -7, 5, 14, 2)) + T(15, 20, "3", { size: 11 })),
       `Two screws, level, ${info.keySpan} mm apart, heads 3 mm proud; slot tops ${info.keyHeight}`);
-    step(`<rect x="48" y="26" width="252" height="174" fill="${W}" stroke="${K}" stroke-width="1.6"/>` + smallHead(110, 50, { dash: true }) + smallHead(110, 76) + arrow(96, 44, 96, 84) +
-      pip(262, 200, { pose: "up", mood: "o" }) + rays(262, 80), "Hang it: onto the screws, then slide down");
+    step(wallPlane + small(150, 70, { dash: true }) + small(150, 104) + arrow(86, 62, 86, 100) + pip(276, 214, { pose: "up", mood: "o", s: 0.9 }) + rays(276, 100), "Hang it: onto the screws, then slide down");
   } else if (post) {
-    step(board(40, 168, 190, 14, 110) + cyl(160, 148, 26, 16) + [-1, 1].map((sgn) => screw(160 + sgn * 34, 118, 22)).join("") + count(60, 60, 4) + driver(250, 96, 20) +
-      (info.hollow ? magnify(150, 178, 262, 196, 30, C(0, 0, 9, { dash: true }) + L(-20, 12, 20, 12, { w: 1.6 })) : "") + tag(130, 222, info.base), "Base: centre the flange, 4 wood screws");
-    step(board(40, 188, 190, 10, 110) + cyl(160, 172, 26, 14) + `<rect x="${152}" y="40" width="16" height="132" fill="${W}" stroke="${K}" stroke-width="${SW}"/>` + cyl(160, 34, 30, 12) +
-      dim(206, 44, 206, 170, info.poleCut) + turn(160, 168, 34) + pip(64, 212, { pose: "hold", s: 0.86 }), `Cut the pole to ${info.poleCut}; thumb screws at both ends`);
-    step(smallHead(96, 20) + cyl(160, 128, 30, 14) + `<rect x="152" y="142" width="16" height="80" fill="${W}" stroke="${K}" stroke-width="${SW}"/>` + arrow(160, 116, 160, 128) +
-      screw(130, 92, 16) + screw(190, 92, 16) + count(56, 150, 4) + driver(250, 70, 30), "Screw the head onto the post cap");
+    const bo = centred(130, 10, 96, 132, 170), fc = pt(bo, 65, 0, 48);
+    step(board(bo, 130, 10, 96) + cyl([fc[0], fc[1] - 12], 22, 12, { top: [[-30, 0], [30, 0], [0, -30], [0, 30]].map(([x, z]) => C(x, z, 3)).join("") }) +
+      screw(fc[0] - 46, fc[1] - 64, 22) + screw(fc[0] + 46, fc[1] - 64, 22) + count(56, 56, 4) + driver(272, 92, 20) +
+      (info.hollow ? magnify(fc[0], fc[1], 266, 196, 28, E(0, 0, 11, 6, { dash: true }) + L(-22, 10, 22, 10, { w: 1.6 })) : "") + tag(240, 34, info.base), "Base: centre the flange, 4 wood screws");
+    const bo2 = centred(130, 10, 96, 140, 196), fc2 = pt(bo2, 65, 0, 48);
+    step(board(bo2, 130, 10, 96) + cyl([fc2[0], fc2[1] - 12], 22, 12) + poleV(fc2[0], 44, fc2[1] - 12) + cyl([fc2[0], 34], 26, 12) +
+      dim(fc2[0] + 52, 44, fc2[0] + 52, fc2[1] - 14, info.poleCut) + turn(fc2[0], fc2[1] - 2, 30) + pip(276, 222, { pose: "point", face: -1, s: 0.8 }), `Cut the pole to ${info.poleCut}; thumb screws at both ends`);
+    step(small(150, 64) + cyl([150, 146], 26, 12) + poleV(150, 158, 236) + arrow(150, 112, 150, 140) + screw(116, 104, 16) + screw(184, 104, 16) + count(56, 150, 4) + driver(262, 80, 30), "Screw the head onto the post cap");
   } else {
     step(dowel(40, 120, 180) + P(rr(220, 110, 32, 20, 4)) + arrow(270, 120, 256, 120) + glue(286, 190) + dim(40, 150, 220, 150, info.legCut) + count(60, 70, 3) + saw(130, 70),
       `Cut 3 dowels to ${info.legCut}; glue and pin the ferrules`);
-    step(drum(160, 70, 52, 26) + leg(130, 100, 92, 214) + leg(190, 100, 228, 214) + leg(160, 102, 160, 226) + turn(110, 150, 18) + turn(210, 150, 18, -1) + count(276, 60, 3),
-      "Screw the 3 legs into the base");
-    step(smallHead(96, 20) + drum(160, 132, 46, 22) + arrow(160, 120, 160, 132) + screw(130, 92, 16) + screw(190, 92, 16) + count(56, 150, 4) + driver(250, 70, 30),
-      "Screw the base onto the head from inside");
+    const p = [160, 70];
+    step(cyl(p, 40, 24) + leg(128, 104, 88, 216) + leg(192, 104, 232, 216) + leg(160, 108, 160, 228) + turn(110, 156, 18) + turn(210, 156, 18, -1) + count(276, 52, 3), "Screw the 3 legs into the base");
+    step(small(150, 64) + cyl([150, 144], 36, 22) + arrow(150, 110, 150, 138) + screw(116, 102, 16) + screw(184, 102, 16) + count(56, 150, 4) + driver(262, 80, 30), "Screw the base onto the head from inside");
   }
-  // felt on the lip, iPad in the tray, slide in, lift out
-  step(head(HX, HY, sz, full) + magnify(HX + 13, HY + 40, 258, 74, 44, P("M-46 -46h28v92h-28z") + P(rr(-18, -32, 8, 64, 2)) + P(rr(4, -32, 8, 64, 2), { dash: true, fill: "none" }) + arrow(2, 0, -8, 0)) +
-    tag(258, 140, `felt ${info.liner} mm`), "Felt strip on the back of the lip, all round the window");
-  step(cassette(HX + 6, HY + 22, HW - 20, HH - 10) + tablet(HX + 16, HY - 70, HW - 40, HH - 28, { dash: true }) + arrow(HX + HW / 2 - 4, HY - 2, HX + HW / 2 - 4, HY + 22) +
-    (info.dock ? check(272, 70) : plug(HX + HW - 4, HY + HH + 30, 0) + arrow(HX + HW - 4, HY + HH + 20, HX + HW - 4, HY + HH + 6)) + pip(278, 226, { pose: "point", face: -1, s: 0.8 }),
-    info.dock ? "iPad face down into the tray" : "iPad face down into the tray, then plug in");
-  step(head(HX, HY, sz, full) + cassette(HX + 14, HY - 96, HW - 28, HH - 6, { dash: true }) + arrow(cx, HY - 50, cx, HY - 4) +
-    (info.dock ? magnify(cx, HY + HH - 10, 258, 176, 34, P("M-34 -2h68v12h-68z") + P(rr(-5, -26, 10, 22, 2), { w: 1.6 }) + arrow(0, -40, 0, -26) + check(20, -16, 0.8)) : "") +
-    (info.dock ? "" : pip(282, 226, { pose: "push", face: -1, s: 0.8 })), info.dock ? "Slide it down; it plugs itself in" : "Slide it down until flush");
-  const mitt = (x, y) => C(x, y, 7);
-  step(G(head(0, 0, sz, full, { screen: true }) + mitt(sz.w / 2, -2) + arrow(sz.w / 2, -14, sz.w / 2, -48), `translate(26 116) scale(0.55)`) + check(110, 70) +
-    G(head(0, 0, sz, full, { screen: true }) + mitt(sz.w / 2, sz.h / 2) + arrow(sz.w / 2, sz.h / 2 - 12, sz.w / 2, -48), `translate(176 116) scale(0.55)`) + cross(270, 70),
-    "Lift it out by the finger scoop, never by the screen");
-  step(head(HX - 20, HY, sz, full, { screen: true, led: info.led }) + pip(262, 222, { pose: "up", mood: "o" }) + rays(262, 98) + G(rays(0, 0, 1.3), `translate(${cx - 20} ${HY - 18})`),
-    "Done. Smile.");
+  // felt, iPad, slide in, lift out, done
+  step(head(O, sz, full) + magnify(...pt(O, 12, 40), 256, 72, 44, P("M-46 -46h28v92h-28z") + P(rr(-18, -32, 8, 64, 2)) + P(rr(4, -32, 8, 64, 2), { dash: true, fill: "none" }) + arrow(2, 0, -8, 0)) +
+    tag(256, 140, `felt ${info.liner} mm`), "Felt strip on the back of the lip, all round the window");
+  { const co = centred(HW - 16, HH - 6, 4, 128, 150), tb = iso(co, 12, -64, 0);
+    step(cassette(co, HW - 16, HH - 6) + tablet(tb, HW - 40, HH - 30, { dash: true }) + arrow(...pt(tb, (HW - 40) / 2, HH - 24), ...pt(co, (HW - 16) / 2 - 8, 12)) +
+      (info.dock ? check(270, 64) : plug(222, 196, 0)) + pip(284, 228, { pose: "point", face: -1, s: 0.8 }),
+      info.dock ? "iPad face down into the tray" : "iPad face down into the tray, then plug in"); }
+  { const cs = iso(O, 10, -38, 2);
+    step(cassette(cs, HW - 20, HH - 6) + head(O, sz, full) + arrow(...dz(pt(O, HW / 2, -64), 4), ...dz(pt(O, HW / 2, -44), 4)) +
+      (info.dock ? magnify(...pt(O, HW / 2, HH - 10), 260, 182, 34, P("M-34 -2h68v12h-68z") + P(rr(-5, -26, 10, 22, 2), { w: 1.6 }) + arrow(0, -40, 0, -26) + check(20, -16, 0.8)) : pip(284, 228, { pose: "push", face: -1, s: 0.8 })),
+      info.dock ? "Slide it down; it plugs itself in" : "Slide it down until flush"); }
+  { const mitt = (p) => C(p[0], p[1], 7);
+    const o0 = centred(HW, HH, depthOf(full), 0, 0), top = iso(o0, HW / 2, -4, 4), mid = iso(o0, HW / 2, HH / 2, 0);
+    step(G(head(o0, sz, full, { screen: true }) + mitt(top) + arrow(top[0], top[1] - 10, top[0], top[1] - 46), "translate(86 140) scale(0.55)") + check(140, 54) +
+      G(head(o0, sz, full, { screen: true }) + mitt(mid) + arrow(mid[0], mid[1] - 10, mid[0], top[1] - 46), "translate(232 140) scale(0.55)") + cross(290, 54),
+      "Lift it out by the finger scoop, never by the screen"); }
+  step(head(at(full, 118, 124), sz, full, { screen: true, led: info.led }) + pip(270, 222, { pose: "up", mood: "o" }) + rays(270, 98) + rays(118, 40, 1.2), "Done. Smile.");
 
   return `<section class="pg"><h2>Before you start</h2><div class="grid">${start.join("")}</div></section>` +
     `<section class="pg"><h2>Print</h2><div class="grid">${pr.join("")}</div></section>` +
