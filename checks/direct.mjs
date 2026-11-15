@@ -2,7 +2,7 @@
 // The no-cassette fit (fitMode "direct"): the iPad sits in the slot itself. For a spread of booths, with the parts placed as
 // assembled: the iPad (with its rear camera bump) touches no part and no parts overlap, it slides out of the top without hitting
 // anything, the slit it goes through is no wider than the iPad (the shell is solid just past each side of it), every part is
-// one body, and there are no setting errors.
+// one body, the faceplate in front of the slit is solid, and there are no setting errors.
 //   node checks/direct.mjs
 import Module from "manifold-3d";
 import * as g from "../app/geom.js";
@@ -49,6 +49,9 @@ for (const [name, o] of cases) {
   const fr = parts.find((p) => p.n === "frame").m, zm = (d.lip + d.chZ1) / 2, yt = d.ipadTop + 2;
   const probe = (x) => fr.intersect(M.cube([1, 1, 1], true).translate([x, yt, zm])).volume();
   const inShell = (x, y) => { const ax = Math.abs(x) - (d.Sx - d.R), ay = Math.abs(y) - (d.Sy - d.R); return Math.hypot(Math.max(ax, 0), Math.max(ay, 0)) < d.R - 1.5 && Math.abs(x) < d.Sx - 1.5 && Math.abs(y) < d.Sy - 1.5; };
+  // the faceplate in front of the slit stays whole (the finger dish only cuts behind the iPad)
+  const fp = fr.intersect(M.cube([56, d.Sy - d.ipadTop - 2, d.tabletZ - 0.5], false).translate([-28, d.ipadTop + 1, 0])).volume() / (56 * (d.Sy - d.ipadTop - 2) * (d.tabletZ - 0.5));
+  if (fp < 0.99) hits.push(`faceplate behind the face only ${(100 * fp).toFixed(0)}% solid`);
   const keyFills = [-1, 1].every((sx) => { const x = d.ipadOff[0] + sx * (d.pw / 2 + 1.0); return !inShell(x, yt) || probe(x) > 0.9; }) && probe(d.ipadOff[0]) < 0.01;
   const bodies = parts.map((p) => { const dec = p.m.decompose(), n = p.m.volume() > 1 ? dec.length : 0;
     const small = dec.length > 1 ? " [" + dec.map((x) => { const b = x.boundingBox(); return `${x.volume().toFixed(0)}mm3 x${b.min[0].toFixed(0)}..${b.max[0].toFixed(0)} y${b.min[1].toFixed(0)}..${b.max[1].toFixed(0)} z${b.min[2].toFixed(1)}..${b.max[2].toFixed(1)}`; }).sort().slice(0, 1).join() + "]" : "";

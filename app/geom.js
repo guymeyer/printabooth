@@ -889,6 +889,9 @@ export function makeEngine(wasm) {
       const tongue = lapTongue(d, c, fd);
       out = add(out, d.capless ? tongue : sub(tongue, box(-TAB.x1 - 1, TAB.x1 + 1, 0, Sy + 5, fd - 1, fd + LAP.len + 1)));
     }
+    // the finger dish's rounded front reaches forward past the iPad; with no cassette (no band covering it) it may only cut
+    // behind the iPad's back, or it would gouge the back of the faceplate down to a thin skin
+    if (d.direct) return sub(out, inter(dish(d), box(-3000, 3000, -3000, 3000, d.tabletZ + c.tablet.t, 3000)));
     return d.capless ? sub(out, dish(d)) : out;
   }
 
