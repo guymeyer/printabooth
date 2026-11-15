@@ -14,19 +14,23 @@ A browser configurator for a 3D-printed, modular iPad photo booth. Pick the tabl
 
 Every printed part is checked to print without supports (except the universal cassette's back ledge), with no wall under 1.4 mm and no overlaps in the assembly.
 
+## Nozzle and material
+
+Step 6 sets the nozzle (0.4, 0.6 or 0.8 mm, default 0.8) and material (PETG or PLA). The nozzle reshapes the white shell parts: walls, ribs and lips snap to whole extrusion widths (nozzle × 1.125, at least 2 lines) and skins to whole layers (nozzle × 0.5, at least 1.2 mm), with outer size and every fit clearance unchanged. The front frame and rings get a 0.4 mm V-groove down their underside and print with it at the back of the bed, where a Rear seam lines up in it. The material only changes the slicer settings (temperature offset, max volumetric speed, cooling, ironing). The page lists what each change did before you export.
+
 ## Export
 
 The download is a zip with:
 
 - STLs in print orientation, full-detail threads.
-- Two PrusaSlicer 2.9+ projects: one for a Prusa XL (single tool, 0.6 nozzle) and one for a Core One (HF 0.4). Each loads with its printer, print and filament presets selected and every part already placed on its bed, across up to nine beds, with per-part settings applied.
+- Two PrusaSlicer 2.9+ projects: one for a Prusa XL (single tool, the chosen nozzle and material) and one for a Core One (HF 0.4, the chosen material). Each loads with its printer, print and filament presets selected and every part already placed on its bed, across up to nine beds, with per-part settings applied.
 - A README with quantities, hardware, print settings and assembly order, plus the settings as JSON.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `app/` | The configurator. `index.html` (UI, a body fragment), `app.js` (UI, three.js scene, export), `geom.js` (all geometry, on manifold-3d), `worker.js` (geometry off the main thread), `pack3mf.js` (bed packing and the PrusaSlicer 3MF writer), `xl.config` and `coreone.config` (flattened PrusaSlicer presets), plus vendored three.js, manifold-3d and JSZip. |
+| `app/` | The configurator. `index.html` (UI, a body fragment), `app.js` (UI, three.js scene, export), `geom.js` (all geometry, on manifold-3d), `worker.js` (geometry off the main thread), `pack3mf.js` (bed packing and the PrusaSlicer 3MF writer), `printsettings.js` (slicer settings from the Nozzle and Material settings), `presets/` (flattened PrusaSlicer presets per printer, nozzle and material), plus vendored three.js, manifold-3d and JSZip. |
 | `checks/` | Node scripts that build the parts and verify them: assembly overlaps, single-body parts, overhangs and thin walls per part, wall thickness around the LED channel, tray and base sockets, ferrule fit, and the 3MF layout. |
 | `tools/build.py` | Builds the static site into `build/` (used by Netlify). |
 | `tools/preview.py` | Builds and serves the configurator locally. |

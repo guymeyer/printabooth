@@ -14,7 +14,37 @@ export const DEFAULTS = {
   inserts: { type: "m3", screw: 3, hole: 4.2, len: 5.7 },
   back: { t: 8, mode: "threaded", d: 8, pitch: 1.25, clr: 0.4, grid: 25, cells: null },
   legs: { splay: 18, dowel: 38.1, camHeight: 1524, threadClr: 0.8, blend: false, circle: 26, style: "puck" },   // style: "puck" (current) | "bent" | "cluster" (older)
+  print: { nozzle: 0.8, material: "PETG", ironing: false },   // nozzle drives the shell's wall/skin snapping; material only the slicer settings
 };
+
+// ---------------------------------------------------------------- print plan (nozzle-driven)
+// Walls, ribs and lips of the shell parts (frame, rings, back panel) snap to whole extrusion widths (at least 2) so they print as
+// full perimeters with no gap fill; horizontal skins snap to whole layers (at least 1.2 mm). Outer dimensions and every fit
+// clearance stay fixed: the change goes to the inside or a non-mating face.
+export const NOZZLES = [0.4, 0.6, 0.8];
+const r2 = (v) => Math.round(v * 100) / 100, r3 = (v) => Math.round(v * 1000) / 1000;
+export function printPlan(c) {
+  const p = c.print || {};
+  const nozzle = NOZZLES.includes(+p.nozzle) ? +p.nozzle : 0.8;
+  const ew = r2(nozzle * 1.125), lh = r2(nozzle * 0.5);
+  const n = (t, how = "round") => Math.max(2, Math[how](t / ew + (how === "floor" ? 1e-6 : 0)));
+  const W = (t, how) => r3(n(t, how) * ew);
+  const minLayers = Math.ceil(1.2 / lh - 1e-9);
+  const L = (t) => r3(Math.max(minLayers, Math.round(t / lh)) * lh);
+  const wall = W(c.shell.wall);                       // ring wall: outer face fixed, inner face moves
+  const lapT = W(LAP.t);                              // glue tongue (socket width follows; the clearance stays LAP.clr)
+  const sock = W(wall - lapT - LAP.clr);              // ring skin outside the socket
+  const lapA = r3(wall - sock - LAP.clr - lapT);      // tongue position from the inner wall, so that skin is whole lines
+  return {
+    nozzle, ew, lh, minLayers, n, W, L, wall, lapT, sock, lapA,
+    lip: L(c.shell.lip), backT: L(c.back.t), ledDepth: L(c.led.depth), cradle: W(2.5),
+    ledSkin: W(c.led.skin), sideNoLed: W(4),
+    topBottom: Math.max(4, Math.ceil(1.2 / lh - 1e-9)),
+  };
+}
+// shallow V-groove (0.4 deep, 90 degrees) down the underside of each tall shell part: a hidden, aligned place for the seam
+export const SEAM_V = 0.4;
+export const SEAM_REAR = new Set(["frame", "ring1", "ringExt", "ringExt2", "ringExtLast"]);
 
 export const TABLETS = {
   "ipad-a16": { label: "iPad (A16) / 10th gen", w: 248.6, h: 179.5, t: 7.0, r: 18, sw: 227.0, sh: 157.8, camEdge: "long", camOff: 5.4, bump: 26 },
@@ -105,7 +135,8 @@ export function derive(c) {
   const iw = land ? tb.w : tb.h, ih = land ? tb.h : tb.w;            // tablet outline as mounted
   // the LED channel is a U (sides and bottom) cut into the solid slot walls; it stops under the cassette's accent band instead
   // of crossing the open top of the slot, so the lip only has to hold the glass
-  const chanClr = 0.5, lip = c.shell.lip;
+  const P = printPlan(c);
+  const chanClr = 0.5, lip = P.lip;
   let Cw, Ch, cassT, ipadOff = [0, 0], chZ1, cassZ, tabletZ;
   if (hug) {
     // bezel-lock tray: 2 mm walls, extra room on the USB-C edge(s) for a right-angle plug
@@ -116,6 +147,8 @@ export function derive(c) {
     let mL = TRAY_WALL, mR = TRAY_WALL, mT = TRAY_WALL, mB = TRAY_WALL;
     if (ps === "both") { if (pd[0]) { mL += g; mR += g; } else { mT += g; mB += g; } }
     else if (pd[0] < 0) mL += g; else if (pd[0] > 0) mR += g; else if (pd[1] > 0) mT += g; else mB += g;
+    // LED off: the frame's side wall is whole lines; the tray's outer edge (inside the slot) takes the difference
+    if (!c.led.on) { const dx = 4 - P.sideNoLed; mL += dx; mR += dx; }
     Cw = pw + mL + mR; Ch = ph + mT + mB;
     ipadOff = [(mL - mR) / 2, (mB - mT) / 2];
     cassT = c.cass.back + tb.t - 0.3;                                 // tablet glass stands 0.3 mm proud of the tray rim
@@ -130,7 +163,7 @@ export function derive(c) {
   const chW = Cw + 2 * chanClr, chH = Ch + 2 * chanClr;
   let Sx, Sy;
   if (hug) {
-    const side = c.led.on ? 2.5 + c.led.w + c.led.skin : 4;
+    const side = c.led.on ? 2.5 + c.led.w + c.led.skin : P.sideNoLed;
     // top/bottom must leave room for the finger scoop above the cassette when there's no cap
     const sideY = (c.cap.lock || "none") === "none" ? Math.max(side, DISH.depth + 2.5) : side;
     Sx = chW / 2 + side; Sy = chH / 2 + sideY;
@@ -147,7 +180,12 @@ export function derive(c) {
   // with the LED on, the bottom corners must also fit the channel (outer skin + channel + 2.5 mm to the slot)
   const needWall = c.led.on ? c.led.skin + c.led.w + 2.5 : 3;
   while (R > 4 && cornerWall(R) < needWall) R -= 0.5;
-  const innerX = Sx - c.shell.wall, innerY = Sy - c.shell.wall;
+  const innerX = Sx - P.wall, innerY = Sy - P.wall;
+  // LED channel walls: outer skin and the wall to the slot snap to whole lines; the channel itself takes the remainder
+  // (never narrower than set unless the 2-line minimum forces it). Thick walls (universal fit) are infilled and left alone.
+  const sideX = Sx - chW / 2, ledSkin = P.ledSkin, gapNom = sideX - c.led.w - ledSkin;
+  const ledGap = gapNom / P.ew > 8 ? gapNom : r3(P.n(gapNom, "floor") * P.ew);
+  const ledW = r3(sideX - ledSkin - ledGap);
   const offX = innerX - 6;
   const ya = Math.round(0.39 * Sy), yb = Math.round(0.65 * Sy);
   const A = [[-offX, ya], [-offX, -ya], [offX, yb], [offX, -yb]];
@@ -174,8 +212,8 @@ export function derive(c) {
     winH = Math.min(Ch - 12, Math.max(Ch - 24, 2 * (Math.abs(cam[1]) + 5), scrH));
     winR = 14; winC = [0, 0];
   }
-  const lx = Sx - c.led.skin - c.led.w / 2, ly = Sy - c.led.skin - c.led.w / 2;
-  const lr = Math.max(0, R - c.led.skin - c.led.w / 2);
+  const lx = Sx - ledSkin - ledW / 2, ly = Sy - ledSkin - ledW / 2;
+  const lr = Math.max(0, R - ledSkin - ledW / 2);
   const ledPerim = 4 * (lx + ly) - 8 * lr + 2 * Math.PI * lr;
   // accent band: in the cassette's layer the cassette widens to the full shell outline above the "shoulder",
   // where the shell's corner arc turns vertical, so its exposed top wraps around both upper corners
@@ -196,10 +234,10 @@ export function derive(c) {
   const I = insertSpec(c);
   const hx0 = offX - I.hole / 2, hx1 = offX + I.hole / 2;
   const hitsSlot = hx0 < chW / 2 + 0.8;
-  const hitsLed = c.led.on && hx1 > Sx - c.led.skin - c.led.w - 1.8 && hx0 < Sx - c.led.skin + 1.8;
+  const hitsLed = c.led.on && hx1 > Sx - ledSkin - ledW - 1.8 && hx0 < Sx - ledSkin + 1.8;
   const glue = c.shell.join !== "screws";
-  const fd = glue ? Math.max(c.shell.frameD, (c.led.on ? c.led.depth : 0) + LAP.depth + 1.2, chZ1 + 2)
-    : Math.max(c.shell.frameD, hitsSlot ? chZ1 + I.depth + 0.8 : 0, hitsLed ? c.led.depth + I.depth + 0.8 : 0);
+  const fd = glue ? Math.max(c.shell.frameD, (c.led.on ? P.ledDepth : 0) + LAP.depth + 1.2, chZ1 + 2)
+    : Math.max(c.shell.frameD, hitsSlot ? chZ1 + I.depth + 0.8 : 0, hitsLed ? P.ledDepth + I.depth + 0.8 : 0);
   // visible border from the shell edge to the active screen, side and top
   const scrW = land ? tb.sw : tb.sh, scrH = land ? tb.sh : tb.sw;
   const bezel = { side: Sx - (ipadOff[0] + scrW / 2), top: Sy - (ipadOff[1] - chanClr + scrH / 2) };
@@ -211,17 +249,19 @@ export function derive(c) {
     fd, glue, lip, capless, yS, rCass, rSlot, land, hug, pw, ph, iw, ih, Cw, Ch, cassT, cassZ, tabletZ, ipadOff, Sw, Sh, Sx, Sy, R, innerX, innerY, offX, A, B,
     chanClr, chW, chH, chZ1, winW, winH, winR, winC, cam, camShell: [cam[0], cam[1] - chanClr], bezel,
     thrMajor: legThread(c), thrPitch: 4, seat: 30, tabLen, ...mainShell(c, fd, glue ? chZ1 - 0.05 - fd : 0),
+    seamX: (() => { const flat = Sx - R, drum = puckSpec(c).R; return drum + 6 <= flat - 3 ? drum + 6 : 0; })(),
+    plan: P, wall: P.wall, lapT: P.lapT, lapA: P.lapA, backT: P.backT, cradle: P.cradle, ledDepth: P.ledDepth, ledSkin, ledW, ledGap,
     led: (() => {
       // U from shoulder to shoulder; two strips start under the bottom inlet cover and run up each side
       const yEnd = (capless ? yS : Sy - R) - 1.5;
       // corner radius of the channel: as round as the shell's, but tightened where needed so the wall between the channel
       // and the cassette slot's (tighter) corner stays as thick as along the straight sides
-      const gx = Sx - c.led.skin - c.led.w, gy = Sy - c.led.skin - c.led.w, gMin = Math.min(gx - chW / 2, gy - chH / 2);
+      const gx = Sx - ledSkin - ledW, gy = Sy - ledSkin - ledW, gMin = Math.min(gx - chW / 2, gy - chH / 2);
       const wallAt = (ri) => { const a = (chW / 2 - rSlot) - (gx - ri), b = (chH / 2 - rSlot) - (gy - ri);
         return a <= 0 && b <= 0 ? gMin : ri - rSlot - Math.hypot(Math.max(a, 0), Math.max(b, 0)); };
-      let ri = Math.max(1, R - c.led.skin - c.led.w);
+      let ri = Math.max(1, R - ledSkin - ledW);
       while (ri > 1 && wallAt(ri) < Math.min(gMin, 2.5) - 0.01) ri -= 0.25;
-      const ro = ri + c.led.w, lc = ro - c.led.w / 2;                      // centreline corner radius
+      const ro = ri + ledW, lc = ro - ledW / 2;                            // centreline corner radius
       const loop = 4 * (lx + ly) - 8 * lc + 2 * Math.PI * lc;
       const U = loop - (2 * (lx - lc) + Math.PI * lc + 2 * Math.max(0, (ly - lc) - yEnd));
       return { perimeter: U, strip: (U - c.led.inlet) / 2 - 3, strips: 2, lit: U - c.led.inlet, straightBottom: 2 * (lx - lc), yEnd, ro };
@@ -252,7 +292,7 @@ function puckSpec(c) {
 }
 function mainShell(c, fd, ring1Front) {
   const P = puckSpec(c), edge = 8;
-  const tail = (c.shell.nExt || 0) * c.shell.ringD + c.back.t;
+  const tail = (c.shell.nExt || 0) * c.shell.ringD + printPlan(c).backT;
   const D1min = Math.max(40, Math.ceil(Math.max(P.R + edge + 12 - fd, 2 * (P.R + edge) - fd - tail) / 5) * 5);
   const D1 = Math.max(c.shell.ring1D || c.shell.ringD, D1min);
   const headDepth = fd + D1 + tail;
@@ -302,6 +342,7 @@ export function validate(c) {
     if (g < 1.6) add("error", "The LED channel cuts into the cassette slot. Make it narrower or reduce the outer wall.", fixG);
     else if (g < 2.5) add("warn", "Less than 2.5 mm of wall between the LED channel and the cassette slot.", fixG);
     if (c.led.skin < 3) add("warn", "The outer wall beside the LED channel is under 3 mm.", fx("Set outer wall to 3 mm", ["led.skin", 3]));
+    if (d.ledW < c.led.w - 0.05) add("warn", `With a ${d.plan.nozzle} mm nozzle the channel narrows to ${d.ledW.toFixed(2)} mm so the wall beside the slot stays 2 lines thick.`, fx("Narrow the outer wall to 3 mm", ["led.skin", 3]));
     if (c.led.inlet > d.led.straightBottom - 10) {
       const L = Math.max(10, Math.floor(d.led.straightBottom - 10));
       add("error", "The wire inlet cover is longer than the straight bottom run of the channel.", fx(`Shorten the cover to ${L} mm`, ["led.inlet", L]));
@@ -310,7 +351,7 @@ export function validate(c) {
   const I = insertSpec(c);
   if (!(I.hole > 1 && I.len > 1)) add("error", "Enter the insert's hole diameter and length.", fx("Use M3 standard inserts", ["inserts", { ...DEFAULTS.inserts }]));
   else if (I.hole > 7) add("error", "Inserts over 7 mm wide don't fit the 16 mm lugs.", fx("Use M3 standard inserts", ["inserts", { ...DEFAULTS.inserts }]));
-  if (c.shell.join !== "screws" && c.back.t < LAP.depth + 2.5) {
+  if (c.shell.join !== "screws" && d.backT < LAP.depth + 2.5) {
     const t = Math.ceil(LAP.depth + 2.5);
     add("error", `The back panel must be at least ${LAP.depth + 2.5} mm thick to take the glued ring's tongue in its groove.`, fx(`Set back panel to ${t} mm`, ["back.t", t]));
   }
@@ -375,12 +416,20 @@ export function makeEngine(wasm) {
   const shellProfile = (d, z0, z1) => rr(d.Sw, d.Sh, d.R, z0, z1);
   // ring-shaped band offset from the shell's inner wall surface (o0..o1 outward), z0..z1
   const band = (d, c, o0, o1, z0, z1) => {
-    const ri = d.R - c.shell.wall;
+    const ri = d.R - d.wall;
     return sub(rr(2 * (d.innerX + o1), 2 * (d.innerY + o1), ri + o1, z0, z1), rr(2 * (d.innerX + o0), 2 * (d.innerY + o0), Math.max(0.5, ri + o0), z0 - 1, z1 + 1));
   };
   // sockets print on the bed: a 0.4 mm relief at the mouth swallows the first layer's squish (elephant's foot)
-  const lapSocket = (d, c, z0 = 0) => add(band(d, c, -LAP.clr, LAP.t + LAP.clr, z0 - 1, z0 + LAP.depth), band(d, c, -LAP.clr - 0.4, LAP.t + LAP.clr + 0.4, z0 - 1, z0 + 0.5));
-  const lapTongue = (d, c, zFace) => band(d, c, 0, LAP.t, zFace - 0.01, zFace + LAP.len);
+  // tongue at lapA..lapA+lapT from the inner wall; the socket is a rebate open to the inside (never a sliver on its inner side)
+  const sockIn = (d) => Math.min(d.lapA - LAP.clr, -LAP.clr), sockOut = (d) => d.lapA + d.lapT + LAP.clr;
+  const lapSocket = (d, c, z0 = 0) => add(band(d, c, sockIn(d), sockOut(d), z0 - 1, z0 + LAP.depth), band(d, c, sockIn(d) - 0.4, sockOut(d) + 0.4, z0 - 1, z0 + 0.5));
+  const lapTongue = (d, c, zFace) => band(d, c, d.lapA, d.lapA + d.lapT, zFace - 0.01, zFace + LAP.len);
+  // seam groove on the underside of a tall part, full height (z0..z1)
+  const seamGroove = (d, z0, z1) => {
+    const v = SEAM_V, x = d.seamX, y = -d.Sy;
+    const cs = T(CrossSection.ofPolygons([[[x - v - 1, y - 1], [x + v + 1, y - 1], [x, y + v]]], "NonZero"));
+    return T(T(cs.extrude(z1 - z0)).translate([0, 0, z0]));
+  };
 
   const mv = (m, x, y, z = 0) => T(m.translate([x, y, z]));
   // 45-degree peak over a horizontal (Y-axis) hole, for parts that print with +z up, so the hole's roof needs no bridge
@@ -509,12 +558,12 @@ export function makeEngine(wasm) {
     return inter(ledLoop(c, d, z0, z1, extra), box(-3000, 3000, -3000, d.led.yEnd - endGap, z0 - 2, z1 + 2));
   }
   function ledLoop(c, d, z0, z1, extra) {
-    const ox = d.Sx - c.led.skin + extra, oy = d.Sy - c.led.skin + extra;
-    const ix = ox - c.led.w - 2 * extra, iy = oy - c.led.w - 2 * extra;
-    const ro = Math.max(2, d.led.ro + extra), ri = Math.max(1, ro - c.led.w - 2 * extra);
+    const ox = d.Sx - d.ledSkin + extra, oy = d.Sy - d.ledSkin + extra;
+    const ix = ox - d.ledW - 2 * extra, iy = oy - d.ledW - 2 * extra;
+    const ro = Math.max(2, d.led.ro + extra), ri = Math.max(1, ro - d.ledW - 2 * extra);
     return sub(rr(2 * ox, 2 * oy, ro, z0, z1), rr(2 * ix, 2 * iy, ri, z0 - 1, z1 + 1));
   }
-  const coverT = (c) => Math.min(3, c.led.depth - 3);
+  const coverT = (c) => Math.min(3, derive(c).ledDepth - 3);
 
   // ------------------------------------------------------------ front frame
   // glued shells split the frame at the back of the cassette slot so neither piece overhangs:
@@ -530,7 +579,7 @@ export function makeEngine(wasm) {
       : sub(lapTongue(d, c, chZ1 - 0.05), box(-chW / 2 - 0.5, chW / 2 + 0.5, 0, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1));
     // the tongue stops either side of the LED wire pocket instead of bridging over it
     const L = c.led.inlet;
-    return add(bezel, c.led.on ? sub(tongue, box(-L / 2 + 0.5, L / 2 - 0.5, -Sy - 1, -(Sy - c.led.skin - c.led.w) + 0.5, chZ1 - 1, chZ1 + LAP.len + 1)) : tongue);
+    return add(bezel, c.led.on ? sub(tongue, box(-L / 2 + 0.5, L / 2 - 0.5, -Sy - 1, -(Sy - d.ledSkin - d.ledW) + 0.5, chZ1 - 1, chZ1 + LAP.len + 1)) : tongue);
   }
   function stopBand(c) {
     const d = derive(c), BIG = 2000;
@@ -556,14 +605,15 @@ export function makeEngine(wasm) {
     if (d.capless) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
     if (c.led.on) {
       const L = c.led.inlet, ct = coverT(c);
-      const yIn = -(Sy - c.led.skin), yInner = -(Sy - c.led.skin - c.led.w);
+      const yIn = -(Sy - d.ledSkin), yInner = -(Sy - d.ledSkin - d.ledW);
       const keep = box(-L / 2, L / 2, -Sy - 1, yInner + 2, -2, ct);           // bridge stays solid at the face
-      const groove = sub(T(Manifold.union([ledRing(c, -1, c.led.depth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), keep);
+      const groove = sub(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0), ledRing(c, -1, c.led.diffT, 1.0)])), keep);
       cuts.push(groove);
       cuts.push(box(-L / 2 + 1, L / 2 - 1, yIn, yInner, ct, fd + 1));           // pocket under the bridge, open to the back
       cuts.push(box(-12, 12, yInner - 0.01, -chH / 2 + 0.01, chZ1, fd + 1));    // joins the bottom wiring notch
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
+    cuts.push(seamGroove(d, -1, fd + 1));
     const I = insertSpec(c);
     if (!d.glue) for (const [x, y] of d.A) cuts.push(cylZ(x, y, fd - I.depth, fd + 1, I.hole));
     let out = sub(body, U(cuts));
@@ -603,7 +653,7 @@ export function makeEngine(wasm) {
   function diffuser(c) {
     const d = derive(c), L = c.led.inlet;
     const ring = ledRing(c, 0, c.led.diffT, 0.7, 0.3);
-    return c.led.on ? sub(ring, box(-L / 2 - 0.3, L / 2 + 0.3, -d.Sy - 1, -(d.Sy - c.led.skin - c.led.w - 3), -1, c.led.diffT + 1)) : ring;
+    return c.led.on ? sub(ring, box(-L / 2 - 0.3, L / 2 + 0.3, -d.Sy - 1, -(d.Sy - d.ledSkin - d.ledW - 3), -1, c.led.diffT + 1)) : ring;
   }
 
   // ------------------------------------------------------------ rings
@@ -625,7 +675,7 @@ export function makeEngine(wasm) {
   function ring(c, first, variantA = false, last = false) {
     const d = derive(c), D = first ? d.D1 : c.shell.ringD, { Sy, innerX, innerY } = d, I = insertSpec(c);
     const F = variantA ? d.B : d.A, Rr = variantA ? d.A : d.B;
-    let body = sub(shellProfile(d, 0, D), rr(2 * innerX, 2 * innerY, d.R - c.shell.wall, -1, D + 1));
+    let body = sub(shellProfile(d, 0, D), rr(2 * innerX, 2 * innerY, d.R - d.wall, -1, D + 1));
     const adds = [], cuts = [];
     if (d.glue) {
       // fully glued shell: tongue at the rear, socket at the front, no lugs.
@@ -640,7 +690,7 @@ export function makeEngine(wasm) {
     }
     if (first && d.capless) {
       // the finger dish continues back from the frame; a cradle underneath keeps it closed off from the inside
-      adds.push(inter(mv(dish(d, 2.5), 0, 0, -d.fd), box(-DISH.hw - 4, DISH.hw + 4, innerY - 30, innerY + 0.5, (d.glue ? d.chZ1 - d.fd : 0) + 0.01, D - 0.01)));
+      adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 4, DISH.hw + 4, innerY - 30, innerY + 0.5, (d.glue ? d.chZ1 - d.fd : 0) + 0.01, D - 0.01)));
       adds.push(box(-45, 45, -innerY - 0.1, -innerY + 9, d.glue ? d.chZ1 - 0.05 - d.fd : 0, D - 6));   // runs down to the print bed
       cuts.push(mv(dish(d), 0, 0, -d.fd));
       for (const [x, z] of d.baseScrews) {
@@ -674,6 +724,7 @@ export function makeEngine(wasm) {
       cuts.push(cylY(0, d.hubZc, -Sy - 1, -innerY + 10, PUCK.cable + 1));
     }
     body = add(body, U(adds));
+    cuts.push(seamGroove(d, (d.glue && first ? d.chZ1 - 0.05 - d.fd : 0) - 1, D + LAP.len + 1));
     return sub(body, U(cuts));
   }
 
@@ -682,7 +733,7 @@ export function makeEngine(wasm) {
     const d = derive(c), b = c.back, g = b.grid;
     const limX = d.innerX - 3 - b.d / 2 - 2.5, limY = d.innerY - 3 - b.d / 2 - 2.5;
     const nx = Math.floor(limX / g), ny = Math.floor(limY / g);
-    const rc = Math.max(1, d.R - c.shell.wall - 3);
+    const rc = Math.max(1, d.R - d.wall - 3);
     const all = [];
     for (let j = ny; j >= -ny; j--) for (let i = -nx; i <= nx; i++) {
       const x = i * g, y = j * g;
@@ -698,9 +749,9 @@ export function makeEngine(wasm) {
   }
 
   function back(c, pv) {
-    const d = derive(c), t = c.back.t, rI = d.R - c.shell.wall;
+    const d = derive(c), t = d.backT, rI = d.R - d.wall;
     let body = shellProfile(d, 0, t);
-    if (d.glue) body = sub(body, band(d, c, -LAP.clr, LAP.t + LAP.clr, -1, LAP.depth));      // groove takes the last ring's tongue
+    if (d.glue) body = sub(body, band(d, c, d.lapA - LAP.clr, d.lapA + d.lapT + LAP.clr, -1, LAP.depth));      // groove takes the last ring's tongue
     else body = add(body, sub(rr(2 * d.innerX - 0.6, 2 * d.innerY - 0.6, rI - 0.3, -2.5, 0), rr(2 * d.innerX - 6, 2 * d.innerY - 6, Math.max(1, rI - 3), -3, 0.1)));
     const cuts = [];
     if (!d.glue) for (const [x, y] of [...d.A, ...d.B]) {
@@ -871,7 +922,7 @@ export function makeEngine(wasm) {
     const d = derive(c), Sy = d.Sy, zc = d.hubZc, D = d.D1;
     const bossD = d.thrMajor + 2 * c.legs.threadClr + 14;
     // mounting disc, trimmed to sit 2 mm inside the shell's footprint (hub coords are ring-1 local: z = 0 at the frame's rear face)
-    const headDepth = d.fd + D + c.shell.ringD * c.shell.nExt + c.back.t;
+    const headDepth = d.fd + D + c.shell.ringD * c.shell.nExt + d.backT;
     const zFront = 2 - d.fd, zBack = headDepth - 2 - d.fd;
     let body = inter(cylY(0, zc, -Sy - 30, -Sy, 140), T(T(rrCS(2 * d.Sx - 4, zBack - zFront, Math.max(2, d.R - 2)).extrude(30)).rotate([90, 0, 0])).translate([0, -Sy, (zFront + zBack) / 2]));
     const adds = [], cuts = [], tops = [];
@@ -904,10 +955,11 @@ export function makeEngine(wasm) {
     ringExtLast: (c) => ring(c, false, false, true),
   };
   // every derived dimension that shapes a part; parts rebuild whenever any of these change
-  const dims = (c) => { const d = derive(c); return [d.Cw, d.Ch, d.Sw, d.Sh, d.R, d.fd, d.lip, d.chZ1, d.cassZ, d.cassT, d.capless, d.glue, d.D1]; };
+  const dims = (c) => { const d = derive(c); return [d.Cw, d.Ch, d.Sw, d.Sh, d.R, d.fd, d.lip, d.chZ1, d.cassZ, d.cassT, d.capless, d.glue, d.D1,
+    d.wall, d.lapT, d.lapA, d.backT, d.cradle, d.ledDepth, d.ledSkin, d.ledW, d.seamX]; };
   const KEYS = {
-    cassette: (c) => [c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap],
-    cassKey: (c) => [c.tablet, c.orientation, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap],
+    cassette: (c) => [c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).Cw, derive(c).lip],
+    cassKey: (c) => [c.tablet, c.orientation, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).lip],
     frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode === "hug" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
     cap: (c) => [dims(c), c.fitMode, c.cass, c.tablet.t, c.shell, c.cap, c.inserts],
     diffuser: (c) => [dims(c), c.shell.cornerR, c.led],
@@ -916,13 +968,14 @@ export function makeEngine(wasm) {
     ringExt2: (c) => [dims(c), c.shell, c.inserts],
     ringExtLast: (c) => [dims(c), c.shell, c.inserts],
     back: (c) => [dims(c), c.shell, c.back, c.inserts],
-    hub: (c) => [dims(c), c.shell, c.legs, c.inserts, c.back.t, derive(c).fd],
+    hub: (c) => [dims(c), c.shell, c.legs, c.inserts, derive(c).backT, derive(c).fd],
     ferrule: (c) => [c.legs.dowel, c.legs.threadClr],
   };
   // the cassette prints back-down: its back ledge is then on the bed and the pocket opens upward
   // (hug tray only; the universal cassette prints face-down so the visible mask gets the bed finish, with supports under its back ledge)
-  const printRot = (name, c) => (name === "cassette" && c.fitMode === "hug" ? [180, 0, 0] : PRINT_ROT[name]);
+  const printRot = (name, c) => (name === "cassette" && c.fitMode === "hug" ? [180, 0, 0] : SEAM_REAR.has(name) ? [0, 0, 180] : PRINT_ROT[name]);
   const PRINT_ROT = { cap: [-90, 0, 0], back: [180, 0, 0], hub: [-90, 0, 0] };
+  // frame and rings print with the booth's underside (and its seam groove) toward the back of the bed, where seam "Rear" puts it
 
   function toMesh(m) {
     const mesh = m.getMesh();
@@ -1019,7 +1072,7 @@ export function assembly(c) {
   }
   items.push({ part: "back", pos: [0, 0, z] });
   items.push({ part: "hub", pos: [0, 0, fd] });
-  return { items, headDepth: z + c.back.t };
+  return { items, headDepth: z + d.backT };
 }
 
 export function legGeometry(c, sockets) {

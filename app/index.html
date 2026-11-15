@@ -139,6 +139,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 .readout dt { color: var(--ink-2); }
 .readout dd { margin: 0; font: 500 13px var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
 .readout dd.big { font-size: 15px; color: var(--accent-ink); }
+.readout.plan { grid-template-columns: minmax(8.5em, 38%) 1fr; }
+.readout.plan dd { text-align: left; font-size: 12px; }
+.readout dd small { display: block; font: 400 11px var(--f-body); color: var(--ink-3); }
+.readout dd.changed { color: var(--accent-ink); font-weight: 600; }
+.sub { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 4px 0 -6px; text-transform: uppercase; letter-spacing: .04em; }
+.note { font-size: 13px; margin: 0; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--ink); border-left: 3px solid var(--warn); }
+.changes { font-size: 12px; margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); color: var(--ink-2); line-height: 1.5; }
+.changes b { color: var(--ink); display: block; margin-bottom: 2px; }
+.changes ul { margin: 0; padding-left: 16px; }
+.changes li { margin: 1px 0; }
 
 .holes-wrap { background: var(--bg); border-radius: 8px; padding: 10px; display: grid; gap: 8px; }
 .holes-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--ink-2); }
@@ -387,14 +397,39 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
         </details>
 
         <details class="step" id="s6">
-          <summary><span class="num">6</span><span class="st"><h2>Export</h2><span class="sum" id="sum6">STL files in print orientation</span></span><span class="chev">▶</span></summary>
+          <summary><span class="num">6</span><span class="st"><h2>Print setup</h2><span class="sum" id="sum6"></span></span><span class="chev">▶</span></summary>
+          <div class="body">
+            <div class="field">
+              <span class="lbl">Nozzle</span>
+              <div class="seg" data-path="print.nozzle" role="group" aria-label="Nozzle"><button type="button" data-v="0.4">0.4 mm</button><button type="button" data-v="0.6">0.6 mm</button><button type="button" data-v="0.8">0.8 mm</button></div>
+            </div>
+            <div class="field">
+              <span class="lbl">Material</span>
+              <div class="seg" data-path="print.material" role="group" aria-label="Material"><button type="button" data-v="PETG">PETG</button><button type="button" data-v="PLA">PLA</button></div>
+            </div>
+            <p class="note" id="plaNote" hidden>PLA softens above about 55 °C. Not recommended for hot cars, direct sun or outdoor summer events. Use PETG for those.</p>
+            <label class="toggle" for="ironing">Ironing (topmost surfaces only) <span class="switch"><input type="checkbox" id="ironing" data-path="print.ironing"><span></span></span></label>
+            <div class="changes" id="printChanges" hidden aria-live="polite"></div>
+            <h3 class="sub">Shell geometry</h3>
+            <dl class="readout plan" id="printGeom"></dl>
+            <h3 class="sub">Slicer settings</h3>
+            <dl class="readout plan" id="printSet"></dl>
+            <h3 class="sub">Material</h3>
+            <dl class="readout plan" id="printMat"></dl>
+            <p class="hint" id="printReminder"></p>
+            <p class="hint">The nozzle reshapes the shell: walls snap to whole extrusion widths and skins to whole layers, so they print as full perimeters with no gap fill. Outer size and every fit stay the same. The material only changes the slicer settings. The front frame and rings each get a shallow V-groove down their underside: they print with it at the back of the bed, where the Rear seam lines up in it.</p>
+          </div>
+        </details>
+
+        <details class="step" id="s7">
+          <summary><span class="num">7</span><span class="st"><h2>Export</h2><span class="sum" id="sum7">STL files in print orientation</span></span><span class="chev">▶</span></summary>
           <div class="body">
             <div class="parts" id="parts"></div>
             <div class="export-row">
               <button class="btn primary" id="exportBtn" type="button">Download print files (.zip)</button>
               <div class="export-msg" id="exportMsg" aria-live="polite"></div>
             </div>
-            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL 0.6 nozzle project and a Core One HF 0.4 project, every part already placed across multiple beds with its print settings), a README with quantities, hardware and assembly order, and your settings as JSON. The projects open in PrusaSlicer 2.9 or newer.</p>
+            <p class="hint">Threads are simplified in the preview and full detail in the files. The zip includes the STLs, two ready-to-slice PrusaSlicer projects (an XL project for the nozzle and material set in Print setup, and a Core One HF 0.4 project for the base and ferrules, every part already placed across multiple beds with its print settings), a README with quantities, hardware and assembly order, and your settings as JSON. The projects open in PrusaSlicer 2.9 or newer.</p>
           </div>
         </details>
       </div>

@@ -1,31 +1,13 @@
 // PrusaSlicer project (3MF) writer: lays the parts out on as many beds as they need (PrusaSlicer 2.9+ multi-bed layout)
 // and stores the printer/print/filament system presets plus per-part setting overrides, so the file opens ready to slice.
 
+// which preset file a project loads comes from printsettings.js (presetKey); the per-part settings arrive with the parts
 export const PRINTERS = {
-  xl: {
-    key: "xl", label: "Prusa XL", file: "xl.config", bed: [360, 360],
-    presets: "Original Prusa XL Input Shaper 0.6 nozzle · 0.20mm STRUCTURAL @XLIS 0.6 · Prusament PETG @XL 0.6",
-  },
-  coreone: {
-    key: "coreone", label: "Prusa Core One", file: "coreone.config", bed: [250, 220],
-    presets: "Prusa CORE One HF0.4 nozzle · 0.20mm SPEED @COREONE HF0.4 · Prusament PETG @COREONE HF0.4",
-  },
+  xl: { key: "xl", label: "Prusa XL", bed: [360, 360] },
+  coreone: { key: "coreone", label: "Prusa Core One", bed: [250, 220] },
 };
 export const MAX_BEDS = 9;
 const GAP = 12, MARGIN = 6;
-
-// per-part overrides on top of the print profile (PrusaSlicer object settings)
-export function partSettings(name, c) {
-  const shell = { perimeters: 3, fill_density: "15%", fill_pattern: "gyroid" };
-  const s = {
-    frame: shell, ring1: shell, ringExt: shell, ringExt2: shell, ringExtLast: shell, back: shell, cap: shell, cassKey: shell,
-    cassette: c.fitMode === "hug" ? shell : { ...shell, support_material: "1", support_material_auto: "1" },
-    diffuser: { perimeters: 2, fill_density: "100%", brim_width: 2 },
-    hub: { perimeters: 5, fill_density: "40%", fill_pattern: "gyroid" },
-    ferrule: { perimeters: 6, fill_density: "100%", brim_width: 5 },
-  }[name] || {};
-  return s;
-}
 
 // PrusaSlicer's bed grid (BedsGrid::index2grid_coords): bed 0 at the origin, then a growing square spiral into +x/+y
 function gridCoords(index) {
@@ -48,7 +30,7 @@ export function packBeds(items, bed) {
   const order = items.slice().sort((a, b) => Math.max(b.w, b.h) * Math.min(b.w, b.h) - Math.max(a.w, a.h) * Math.min(a.w, a.h));
   const beds = [];
   const tryBed = (b, it) => {
-    for (const rot of [0, 1]) {
+    for (const rot of it.fixed ? [0] : [0, 1]) {   // fixed: the part's seam groove must stay at the back of the bed
       const w = rot ? it.h : it.w, h = rot ? it.w : it.h;
       if (w > W || h > H) continue;
       for (const s of b.shelves) if (h <= s.h && s.x + w <= W) { b.list.push({ item: it, x: s.x + w / 2, y: s.y + h / 2, rot, w, h }); s.x += w + GAP; return true; }
@@ -78,7 +60,7 @@ const num = (v) => { const r = Math.round(v * 1e5) / 1e5; return Object.is(r, -0
 
 // meshes: {name: {pos: Float32Array, idx: Uint32Array}} in print orientation, centred in x/y, sitting on z = 0
 // beds: output of packBeds, items carry {name, label}
-export function projectFiles(beds, meshes, bed, c, title) {
+export function projectFiles(beds, meshes, bed, c, title, per = {}) {
   const objects = [], build = [], modelCfg = [];
   let nextId = 1;
   const first = {};                               // part name -> object id holding its mesh
@@ -106,7 +88,7 @@ export function projectFiles(beds, meshes, bed, c, title) {
     const label = places[0].item.objName || places[0].item.label;
     const meta = (type, key, value) => `${type === "object" ? "  " : "   "}<metadata type="${type}" key="${key}" value="${esc(value)}"/>`;
     const lines = [` <object id="${firstId}" instances_count="${places.length}">`, meta("object", "name", label)];
-    for (const [k, v] of Object.entries(partSettings(name, c))) lines.push(meta("object", k, v));
+    for (const [k, v] of Object.entries(per[name] || {})) lines.push(meta("object", k, v));
     lines.push(`  <volume firstid="0" lastid="${m.idx.length / 3 - 1}">`, meta("volume", "name", label), meta("volume", "volume_type", "ModelPart"),
       `   <mesh edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>`, `  </volume>`, ` </object>`);
     modelCfg.push(lines.join("\n"));

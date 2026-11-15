@@ -40,14 +40,26 @@ def project(printer, print_, filament):
     return cfg
 def conds(printer, print_, filament):
     return {t: S[(t, n)].get('compatible_printers_condition', '(inherited)') for t, n in (('print', print_), ('filament', filament))}, flat('print', print_).get('compatible_printers_condition'), flat('filament', filament).get('compatible_printers_condition'), flat('filament', filament).get('compatible_prints_condition')
-sets = {
-  'xl': ('Original Prusa XL Input Shaper 0.6 nozzle', '0.20mm STRUCTURAL @XLIS 0.6', 'Prusament PETG @XL 0.6'),
-  'coreone': ('Prusa CORE One HF0.4 nozzle', '0.20mm SPEED @COREONE HF0.4', 'Prusament PETG @COREONE HF0.4'),
+# one project config per printer x nozzle x material; the app picks one and applies the computed print settings on top
+XL = {
+  '0.4': ('Original Prusa XL Input Shaper 0.4 nozzle', '0.20mm STRUCTURAL @XLIS 0.4', {'petg': 'Prusament PETG @XL', 'pla': 'Prusament PLA @XLIS'}),
+  '0.6': ('Original Prusa XL Input Shaper 0.6 nozzle', '0.32mm STRUCTURAL @XLIS 0.6', {'petg': 'Prusament PETG @XL 0.6', 'pla': 'Prusament PLA @XL 0.6'}),
+  '0.8': ('Original Prusa XL Input Shaper 0.8 nozzle', '0.40mm QUALITY @XLIS 0.8', {'petg': 'Prusament PETG @XL 0.8', 'pla': 'Prusament PLA @XL 0.8'}),
 }
+CORE = ('Prusa CORE One HF0.4 nozzle', '0.20mm SPEED @COREONE HF0.4', {'petg': 'Prusament PETG @COREONE HF0.4', 'pla': 'Prusament PLA @COREONE HF0.4'})
+sets = {}
+BASE = {}
+# the preset values the app's print-settings summary and overrides start from
+BASE_KEYS = ['nozzle_diameter', 'layer_height', 'temperature', 'first_layer_temperature', 'filament_max_volumetric_speed', 'solid_infill_speed', 'top_solid_infill_speed', 'min_fan_speed', 'max_fan_speed', 'disable_fan_first_layers', 'full_fan_speed_layer', 'bridge_fan_speed', 'perimeters', 'fill_density', 'fill_pattern', 'top_fill_pattern', 'seam_position', 'ironing', 'ironing_type', 'first_layer_height']
+for nz, (pr, pt, fls) in XL.items():
+    for mat, fl in fls.items(): sets['xl-%s-%s' % (nz, mat)] = (pr, pt, fl)
+for mat, fl in CORE[2].items(): sets['coreone-%s' % mat] = (CORE[0], CORE[1], fl)
 for key, (pr, pt, fl) in sets.items():
     cfg = project(pr, pt, fl)
-    print(key, len(cfg), 'bed_shape', cfg.get('bed_shape'), 'printer_model', cfg.get('printer_model'), 'nozzle', cfg.get('nozzle_diameter'), 'layer', cfg.get('layer_height'), 'efc', cfg.get('elefant_foot_compensation'), 'seam', cfg.get('seam_position'))
+    print(key, len(cfg), 'nozzle', cfg.get('nozzle_diameter'), 'layer', cfg.get('layer_height'), 'temp', cfg.get('temperature'), cfg.get('first_layer_temperature'), 'mvs', cfg.get('max_volumetric_speed'), 'fan', cfg.get('min_fan_speed'), cfg.get('max_fan_speed'), cfg.get('disable_fan_first_layers'), cfg.get('full_fan_speed_layer'), 'solid', cfg.get('solid_infill_speed'), 'top', cfg.get('top_solid_infill_speed'), 'ew', cfg.get('extrusion_width'), cfg.get('perimeter_extrusion_width'))
     print('   conds', conds(pr, pt, fl)[1:])
     lines = ['; Project settings: %s / %s / %s (PrusaSlicer system presets, profile bundle %s)' % (pr, pt, fl, S.get(('vendor','PrusaResearch'),{}).get('config_version','?'))]
     for k in sorted(cfg): lines.append('; %s = %s' % (k, cfg[k]))
-    open(os.path.join(OUT, key + '.config'), 'w').write('\n'.join(lines) + '\n')
+    open(os.path.join(OUT, 'presets', key + '.config'), 'w').write('\n'.join(lines) + '\n')
+    BASE[key] = {'printer': pr, 'print': pt, 'filament': fl, **{k: cfg.get(k) for k in BASE_KEYS}}
+json.dump(BASE, open(os.path.join(OUT, 'presets', 'index.json'), 'w'), indent=1)

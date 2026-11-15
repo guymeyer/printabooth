@@ -3,6 +3,7 @@ import { OrbitControls } from "./OrbitControls.js";
 import { toCreasedNormals } from "./BufferGeometryUtils.js";
 import { DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive } from "./geom.js";
 import { PRINTERS } from "./pack3mf.js";
+import { printSettings, applyConfig, presetKey } from "./printsettings.js";
 
 // ------------------------------------------------------------------ state
 const STORE = "cassette-booth-config-v1";
@@ -397,8 +398,47 @@ function syncControls() {
   const n = holes ? holes.all.filter((h) => isOn(h)).length : 0;
   $("#sum4").textContent = cfg.back.mode === "none" ? "Solid" : `${n} ${cfg.back.mode} holes on a ${cfg.back.grid} mm grid`;
   $("#sum5").textContent = `Camera at ${inch(cfg.legs.camHeight)}, ${cfg.legs.splay}° splay`;
+  renderPrint();
 }
 function changed(delay) { save(); syncControls(); rebuild(delay); }
+
+// ---------------------------------------------------------------- print setup (nozzle + material)
+var PRESET_BASE = null;   // var: syncControls can run before this line on startup
+const presetsReady = fetch("presets/index.json").then((r) => r.json()).then((j) => { PRESET_BASE = j; renderPrint(); }).catch(() => {});
+var printChanges = [];
+const flatRows = (ps) => [...ps.geometry, ...ps.settings, ...ps.matRows].map(([k, v]) => [k, v]);
+function renderPrint() {
+  $("#plaNote").hidden = (cfg.print.material || "PETG") !== "PLA";
+  if (!PRESET_BASE) return;
+  const ps = printSettings(cfg, PRESET_BASE);
+  $("#sum6").textContent = `${ps.nozzle} mm nozzle · ${ps.material}`;
+  $("#sum7").textContent = `STLs + PrusaSlicer projects · ${ps.nozzle} mm · ${ps.material}`;
+  $("#printReminder").textContent = ps.reminder;
+  const fill = (el, rows) => { el.replaceChildren(); for (const [k, v, note] of rows) {
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd"); dd.textContent = v; if (note) { const sm = document.createElement("small"); sm.textContent = note; dd.append(sm); }
+    if (printChanges.some((c) => c[0] === k)) dd.classList.add("changed");
+    el.append(dt, dd); } };
+  fill($("#printGeom"), ps.geometry); fill($("#printSet"), ps.settings); fill($("#printMat"), ps.matRows);
+  const box = $("#printChanges");
+  box.hidden = !printChanges.length;
+  box.replaceChildren();
+  if (printChanges.length) {
+    const h = document.createElement("b"); h.textContent = "Changed by this setting";
+    const ul = document.createElement("ul");
+    for (const [k, a, b] of printChanges) { const li = document.createElement("li"); li.textContent = `${k}: ${a} → ${b}`; ul.append(li); }
+    box.append(h, ul);
+  }
+}
+// a nozzle or material change records what it changed (shown above the tables until the next change)
+function printChange(path, v) {
+  const before = PRESET_BASE ? flatRows(printSettings(cfg, PRESET_BASE)) : [];
+  set(path, path === "print.nozzle" ? parseFloat(v) : v);
+  if (path === "print.material") cfg.print.ironing = v === "PLA";      // ironing defaults: on for PLA, off for PETG
+  const after = PRESET_BASE ? flatRows(printSettings(cfg, PRESET_BASE)) : [];
+  const was = new Map(before);
+  printChanges = after.filter(([k, val]) => was.has(k) && was.get(k) !== val).map(([k, val]) => [k, was.get(k), val]);
+}
 
 for (const el of $$("input[data-path], select[data-path]")) {
   const ev = el.type === "range" ? "input" : "change";
@@ -412,7 +452,9 @@ for (const el of $$("input[data-path], select[data-path]")) {
 }
 for (const seg of $$(".seg[data-path]")) seg.addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
-  set(seg.dataset.path, b.dataset.v); changed(60);
+  if (seg.dataset.path.startsWith("print.")) printChange(seg.dataset.path, b.dataset.v);
+  else set(seg.dataset.path, b.dataset.v);
+  changed(60);
 });
 $("#camH").addEventListener("input", (e) => { cfg.legs.camHeight = Math.round(parseFloat(e.target.value) * 25.4); save(); syncControls(); renderStats(); if (view === "kiosk") composeScene(); });
 $("#extMinus").addEventListener("click", () => { if (cfg.shell.nExt > 0) { cfg.shell.nExt--; changed(40); } });
@@ -634,20 +676,22 @@ function readme(sizes, projNotes = []) {
   if (cfg.fitMode === "hug") lines.push("", "BEZEL LOCK: the iPad lies face-forward in the tray; the frame lip covers " + cfg.cass.overlap + " mm of its black glass border.",
     "  Stick " + cfg.cass.liner + " mm felt or microfiber tape on the back of the lip so the glass never touches bare plastic.",
     "  Use a right-angle USB-C cable whose plug fits in " + cfg.cass.portGap + " mm beside the port; the cable exits backward through the tray.");
-  lines.push("", "PRINT SETTINGS (the .3mf projects already carry all of this; the STLs are in print orientation too)",
-    "  XL, 0.6 nozzle: frame, rings, cassette, back, diffuser on 0.20mm STRUCTURAL @XLIS 0.6 with Prusament PETG @XL 0.6.",
-    "  Core One, HF 0.4 nozzle: hub and ferrules on 0.20mm SPEED @COREONE HF0.4 with Prusament PETG @COREONE HF0.4.",
-    "  Material: matte PETG for the shell and cassette (hides layer lines, tougher than PLA in a hot car); translucent PETG for the diffuser.",
-    "  Sheet: smooth or satin PEI with a thin wipe of glue stick (PETG can bond to bare smooth PEI). The frame's front face and the",
-    "    cassette's back print on the sheet, so the sheet's finish becomes their finish.",
-    "  Everywhere: elephant-foot compensation 0.2 mm (in the profiles), seam Aligned (paint it to the underside or back on the rings),",
-    `    ${cfg.fitMode === "hug" ? "no supports on any part." : "no supports except the universal cassette (supports on, for the back ledge; the front mask prints on the bed)."}`,
-    "  Per-part settings in the projects: shell parts 3 perimeters (0.6 nozzle, so the 4 mm ring walls print solid) and 15% gyroid;",
-    "    diffuser 2 perimeters, 100% infill, 2 mm brim; hub 5 perimeters, 40% gyroid; ferrules 6 perimeters, 100% infill, 5 mm brim.",
-    "  For a finer shell surface, set the rings to 0.15 mm layers (right-click > Layers and perimeters): they are the big visible walls.",
-    "  Bridges: keep the fan at 100% on bridges (LED channel roof, joint sockets).",
-    "  Fit: joints have 0.2 mm/side glue gap, the cassette 0.5 mm/side in its slot, the diffuser 0.3 mm/side, leg threads 0.8 mm on diameter.",
-    "    If your printer runs tight, print one ring's socket corner and the frame's tongue corner as a test before the full set.", "");
+  if (PRESET_BASE) {
+    const ps = printSettings(cfg, PRESET_BASE), xlB = PRESET_BASE[presetKey(cfg, "xl")], coB = PRESET_BASE[presetKey(cfg, "coreone")];
+    const row = ([k, v, note]) => `  ${k}: ${v}${note ? ` (${note})` : ""}`;
+    lines.push("", `PRINT SETTINGS: ${ps.nozzle} mm nozzle, ${ps.material} (the .3mf projects carry all of this; the STLs are in print orientation)`,
+      `  ${ps.reminder}`,
+      `  XL: ${xlB.printer} / ${xlB.print} / ${xlB.filament}.`,
+      `  Core One (base and ferrules): ${coB.printer} / ${coB.print} / ${coB.filament}.`,
+      ...(ps.plaNote ? [`  ${ps.plaNote}`] : []),
+      "", " Shell geometry for this nozzle (walls in whole extrusion widths, skins in whole layers; outer size and fits unchanged)",
+      ...ps.geometry.map(row), "", " Slicer settings", ...ps.settings.map(row), "", ` ${ps.material}`, ...ps.matRows.map(row),
+      "", " Orientation (already set in the STLs and projects)", ...ps.orientation.map(row),
+      "", " Also: smooth or satin PEI with a thin wipe of glue stick; elephant-foot compensation 0.2 mm (in the profiles); fan 100% on bridges.",
+      `  ${cfg.fitMode === "hug" ? "No supports on any part." : "No supports except the universal cassette (on, for its back ledge)."}`,
+      "  Fit: joints 0.2 mm/side glue gap, cassette 0.5 mm/side in its slot, diffuser 0.3 mm/side, leg threads 0.8 mm on diameter.",
+      "  Print one ring's socket corner and the frame's tongue corner as a test before the full set.", "");
+  }
   lines.push("HARDWARE");
   const I = insertSpec(cfg), M = `M${I.screw}`, nRings = 1 + cfg.shell.nExt;
   const glue = cfg.shell.join !== "screws";
@@ -704,7 +748,9 @@ $("#exportBtn").addEventListener("click", async () => {
   try {
     const qty = Object.fromEntries(exportList()), labels = Object.fromEntries(parts.map((p) => [p, partLabel(p)]));
     const title = `cassette-booth-${slug(cfg.tablet.preset)}-${cfg.orientation}`;
-    const res = await call({ type: "export", cfg: clone(cfg), parts, qty, labels, title }, (p) => {
+    if (!PRESET_BASE) await presetsReady;
+    const ps = printSettings(cfg, PRESET_BASE);
+    const res = await call({ type: "export", cfg: clone(cfg), parts, qty, labels, title, per: ps.per }, (p) => {
       msg.textContent = p === "projects" ? "Laying the parts out on PrusaSlicer beds…" : `Generating ${PART_INFO[p].label.toLowerCase()} with full threads…`;
     });
     msg.textContent = "Packing the zip…";
@@ -723,12 +769,13 @@ $("#exportBtn").addEventListener("click", async () => {
     const projNotes = [];
     for (const pj of res.projects || []) {
       const P = PRINTERS[pj.printer];
-      const conf = await (await fetch(P.file)).text();
+      const key = presetKey(cfg, pj.printer), B = PRESET_BASE[key];
+      const conf = applyConfig(await (await fetch(`presets/${key}.config`)).text(), ps[pj.printer]);
       const z3 = new JSZip();
       for (const [path, text] of Object.entries(pj.files)) z3.file(path, text);
       z3.file("Metadata/Slic3r_PE.config", conf);
       zip.file(`${pj.name}.3mf`, await z3.generateAsync({ type: "uint8array", compression: "DEFLATE", compressionOptions: { level: 6 } }));
-      projNotes.push(`  ${pj.name}.3mf  ${P.label}, ${pj.beds} bed${pj.beds > 1 ? "s" : ""}: ${P.presets}`);
+      projNotes.push(`  ${pj.name}.3mf  ${P.label}, ${pj.beds} bed${pj.beds > 1 ? "s" : ""}: ${B.printer} · ${B.print} · ${B.filament}`);
     }
     zip.file("README.txt", readme(sizes, projNotes));
     zip.file("booth-config.json", JSON.stringify(cfg, null, 2));
