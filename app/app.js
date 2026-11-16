@@ -2,7 +2,7 @@
 import * as THREE from "./three.module.js";
 import { OrbitControls } from "./OrbitControls.js";
 import { toCreasedNormals } from "./BufferGeometryUtils.js";
-import { LED_END, DEFAULTS, TABLETS, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive, mountOf, LED_STRIPS, stripOf, ledFit, poleOf, postSpec, flangeSpec, POST, FLANGE, PLY, KEY, DOCK_PLUGS, plugOf } from "./geom.js";
+import { LED_END, DEFAULTS, TABLETS, slotCapLayout, PART_INFO, INSERTS, insertSpec, screwLen, validate, assembly, legGeometry, derive, mountOf, LED_STRIPS, stripOf, ledFit, poleOf, postSpec, flangeSpec, POST, FLANGE, PLY, KEY, DOCK_PLUGS, plugOf } from "./geom.js";
 import { howtoBody, howtoPage, HOWTO_CSS } from "./howto.js";
 import { sound, toggleCue, checkCue, expandCue, changeCue } from "./sound.js";
 import { PRINTERS } from "./pack3mf.js";
@@ -63,11 +63,11 @@ function call(msg, progress) {
 }
 function busy(on, text) { $("#busy").dataset.idle = String(!on); $("#busyText").textContent = text; }
 
-const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "diffuser", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
+const ALL_PARTS = ["cassette", "cassKey", "frame", "cap", "slotCap", "diffuser", "dockClip", "ring1", "ringExt", "ringExt2", "ringExtLast", "back", "wallCase", "wallBack", "hub", "ferrule", "postCap", "flange", "threadTest"];
 // parts this booth uses (built for the preview); the export list adds quantities
 function usedParts() {
   const mt = mountOf(cfg), d = derive(cfg);
-  return ALL_PARTS.filter((p) => !(p === "diffuser" && !cfg.led.on) && !(p === "dockClip" && !d.dock)
+  return ALL_PARTS.filter((p) => !(p === "diffuser" && !cfg.led.on) && !(p === "dockClip" && !d.dock) && !(p === "slotCap" && !d.slotCap)
     && !(mt === "wall" && ["ring1", "ringExt", "ringExt2", "ringExtLast", "back", "hub", "ferrule", "postCap", "flange"].includes(p))
     && !(mt !== "wall" && ["wallCase", "wallBack"].includes(p))
     && !(mt !== "tripod" && ["hub", "ferrule"].includes(p)) && !(mt !== "post" && ["postCap", "flange"].includes(p))
@@ -127,7 +127,7 @@ const COLORS = {
 };
 const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.0, ...extra });
 const MATS = {
-  cassette: mat(COLORS.cassette), cassKey: mat(COLORS.cassette), frame: mat(COLORS.shell), cap: mat(COLORS.shell), ring1: mat(COLORS.shell),
+  cassette: mat(COLORS.cassette), cassKey: mat(COLORS.cassette), frame: mat(COLORS.shell), cap: mat(COLORS.shell), slotCap: mat(COLORS.shell), ring1: mat(COLORS.shell),
   ringExt: mat(COLORS.shell), ringExt2: mat(COLORS.shell), ringExtLast: mat(COLORS.shell), back: mat(COLORS.shell), hub: mat(COLORS.hub), ferrule: mat(COLORS.ferrule),
   diffuser: mat(COLORS.diffuser, { emissive: 0xffa53a, emissiveIntensity: 0.55, roughness: 0.4, transparent: true, opacity: 0.92 }),
   wallCase: mat(COLORS.shell), wallBack: mat(COLORS.shell), postCap: mat(COLORS.hub), flange: mat(COLORS.hub), dockClip: mat(COLORS.hub), threadTest: mat(COLORS.shell),
@@ -138,7 +138,7 @@ const selEdgeMat = new THREE.LineBasicMaterial({ color: 0xd98516 });
 // ------------------------------------------------------------------ colors (preview of the filament colors)
 // every printed part takes its role's color from the chosen look unless it has its own; picking a new color adds it to the
 // library. Stored in cfg.colors, so it travels with saves and booth codes.
-const ROLE = { frame: "shell", cap: "shell", ring1: "shell", ringExt: "shell", ringExt2: "shell", ringExtLast: "shell", back: "shell", wallCase: "shell", wallBack: "shell", threadTest: "shell",
+const ROLE = { frame: "shell", cap: "shell", slotCap: "shell", ring1: "shell", ringExt: "shell", ringExt2: "shell", ringExtLast: "shell", back: "shell", wallCase: "shell", wallBack: "shell", threadTest: "shell",
   cassette: "cassette", cassKey: "cassette", hub: "base", postCap: "base", flange: "base", ferrule: "base", dockClip: "base", diffuser: "diffuser" };
 const LOOKS = {
   studio: { label: "Studio", shell: "#e3e1db", cassette: "#2f5d62", base: "#5f6461", diffuser: "#ffc56b" },
@@ -226,7 +226,7 @@ function composeScene() {
     if (it.spin) m.rotation.z = Math.PI;
     if (exploded) {
       const off = {
-        cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], cap: [0, 150, 0], diffuser: [0, 0, -110], ring1: [0, 0, 60],
+        cassette: [0, d.Ch * 1.12, 0], cassKey: [0, d.Ch * 1.12 + 120, 0], cap: [0, 150, 0], slotCap: [0, d.Ch * 1.05 + 40, 0], diffuser: [0, 0, -110], ring1: [0, 0, 60],
         back: [0, 0, 60 * (cfg.shell.nExt + 2)], hub: [0, -150, 60], postCap: [0, -150, 60], wallCase: [0, 0, 60], wallBack: [0, 0, 140], dockClip: [0, -70, -90],
       }[it.part];
       if (it.part.startsWith("ringExt")) { extIndex++; m.position.z += 60 * (extIndex + 1); }
@@ -427,14 +427,15 @@ function syncBasic() {
   $("#bCamSide").hidden = (cfg.orientation === "landscape") === (cfg.tablet.camEdge === "long");
   const uniOk = universalFits(cfg), uniBtn = $('#basicPane [data-path="fitMode"] [data-v="universal"]');
   if (uniBtn) uniBtn.disabled = !uniOk && cfg.fitMode !== "universal";
-  $("#bFitHint").textContent = !uniOk && cfg.fitMode !== "universal" && cfg.fitMode !== "direct" ? `This iPad doesn't fit the Universal ${cfg.cass.size} mm shell. Single Size gives it a shell and cassette sized to it; Specific iPad drops the cassette for the smallest booth.`
-    : cfg.fitMode === "direct" ? "No cassette: the iPad slides bare into a slot sized to it. The smallest booth and one less part to print, best for a booth that keeps one iPad for good. Only this model fits, and it can't wear a case."
+  $('#basicPane [data-path="fitMode"] [data-v="hug"]').hidden = cfg.fitMode !== "hug";   // the snug cassette lives in Advanced
+  $("#bSlotCap").hidden = cfg.fitMode !== "direct";
+  $("#bFitHint").textContent = cfg.fitMode === "direct" ? (uniOk ? "" : `This iPad doesn't fit the Universal ${cfg.cass.size} mm shell, so the booth is made for it. `) + "No cassette: the iPad slides bare into a slot sized to it. The smallest booth and one less part to print, best for a booth that keeps one iPad for good. Only this model fits, and it can't wear a case."
     : cfg.fitMode === "hug" ? "A shell and cassette sized to this iPad, so the booth is smaller than Universal. The cassette carries the iPad in and out, so a charged spare of the same model can wait in a second cassette for a quick swap at an event." : `One ${cfg.cass.size} mm square shell takes most iPads, each in its own cassette. Pick this to swap between iPads or upgrade later: a new iPad only needs a new cassette.`;
   const dockWith = (side) => !!derive({ ...cfg, camSide: side, fitMode: cfg.fitMode === "direct" ? "direct" : "hug", dock: { ...cfg.dock, on: true } }).dock;
   const other = cfg.camSide === "left" ? "right" : "left", here = dockWith(cfg.camSide), flip = !here && dockWith(other), canDock = here || flip;
   $("#bDock").disabled = !canDock && !cfg.dock.on;
   $("#bDockCable").hidden = !cfg.dock.on;
-  $("#bDockHint").textContent = !canDock ? "Works with the screen in portrait, where the iPad's port faces down." : flip && !cfg.dock.on ? `A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down. Turning it on puts the camera on the ${other}, so the port faces down.` : cfg.dock.on ? "A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down. Uses a snug shell." : "A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down.";
+  $("#bDockHint").textContent = !canDock ? "Works with the screen in portrait, where the iPad's port faces down." : flip && !cfg.dock.on ? `A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down. Turning it on puts the camera on the ${other}, so the port faces down.` : cfg.dock.on ? "A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down. Uses the Specific iPad fit." : "A fixed USB-C plug in the bottom of the slot: the iPad plugs itself in as you slide it down.";
   keepCustom($("#bDockBrand"), cfg.dock.brand, "Custom plug (set in Advanced)");
   $("#bLedStrip").hidden = $("#bLedFeed").hidden = !cfg.led.on;
   keepCustom($("#bStrip"), cfg.led.strip, "Custom channel (set in Advanced)");
@@ -492,6 +493,14 @@ function syncControls() {
     $("#portHint").textContent = cfg.cass.portSide === "both"
       ? "Plug room on both opposite edges, in case your port isn't where the camera suggests."
       : `With the camera where it is, the port faces the ${edge} edge (seen from the front), so the plug room goes there only.`;
+  }
+  $("#slotCapField").hidden = !d.direct;
+  {
+    const I = insertSpec(cfg), L = slotCapLayout(cfg, d), sl = screwLen(d.Sy - I.head_h - 0.3 - L.yFloor, I);
+    $("#slotCapHint").textContent = $("#bSlotCapHint").textContent = cfg.cap.slot === "lock"
+      ? `The cap clicks in and an M${I.screw} × ${sl} mm screw holds it down, into a heat-set insert under the finger dish. A security (pin Torx) screw keeps guests from taking the iPad.`
+      : cfg.cap.slot === "snap" ? "A cap closes the slit flush and clicks into the finger dish behind it, so the iPad can't lift or rattle. Lift it out by the nail groove at its back edge."
+      : "The slit over the iPad stays open, with a finger dish behind it to lift the iPad out.";
   }
   $("#fitHint").textContent = d.direct
     ? `No cassette: the iPad slips in through a slit in the top, just its own width and thickness, into a pocket sized to it; the frame's lip holds its black glass border and the shell fills everything else. Shell ${d.Sw.toFixed(0)} × ${d.Sh.toFixed(0)} mm, ${d.bezel.side.toFixed(0)} mm from the edge to the screen at the sides and ${d.bezel.top.toFixed(0)} mm at the top. This iPad only, and without a case.`
@@ -613,7 +622,7 @@ for (const el of $$("input[data-path], select[data-path]")) {
     if (p.startsWith("tablet.")) cfg.tablet.preset = "custom";
     set(p, v);
     if (p === "dock.on" && v) {   // the dock needs a shell sized to the iPad, and its port facing down: turn the camera round if that does it
-      if (cfg.fitMode === "universal") cfg.fitMode = "hug";
+      if (cfg.fitMode === "universal") cfg.fitMode = el.id === "bDock" ? "direct" : "hug";   // Basic offers no snug cassette
       if (!derive(cfg).dock) { const was = cfg.camSide; cfg.camSide = was === "left" ? "right" : "left"; if (!derive(cfg).dock) cfg.camSide = was; }
     }
     if (p === "led.strip") { const f = ledFit(cfg, v); if (f) { cfg.led.w = f.w; cfg.led.depth = f.depth; } }   // a strip sizes its channel
@@ -643,8 +652,8 @@ $("#reset").addEventListener("click", () => {
 });
 $("#bPreset").addEventListener("change", (e) => {
   if (e.target.value === "custom") return;
-  // Basic keeps to choices that work: an iPad too big (or thick) for the shared cassette moves to a shell sized to it
-  if (cfg.fitMode === "universal" && !universalFits({ ...cfg, tablet: { ...cfg.tablet, ...TABLETS[e.target.value] } })) cfg.fitMode = "hug";
+  // Basic keeps to choices that work: an iPad too big (or thick) for the shared cassette moves to the no-cassette fit
+  if (cfg.fitMode === "universal" && !universalFits({ ...cfg, tablet: { ...cfg.tablet, ...TABLETS[e.target.value] } })) cfg.fitMode = "direct";
   presetSel.value = e.target.value; presetSel.dispatchEvent(new Event("change"));
 });
 { // Basic / Advanced tabs; the choice is remembered on this browser
@@ -960,7 +969,7 @@ function renderStats() {
 // ------------------------------------------------------------------ parts list + export
 function exportList() {
   const list = [
-    ...(cfg.fitMode === "direct" ? [] : [["cassette", 1]]), ...(cfg.fitMode === "universal" && (cfg.cap.lock || "none") === "none" ? [["cassKey", 1]] : []), ["frame", 1], ...(cfg.cap.lock && cfg.cap.lock !== "none" ? [["cap", 1]] : []), ["ring1", 1],
+    ...(cfg.fitMode === "direct" ? [] : [["cassette", 1]]), ...(cfg.fitMode === "universal" && (cfg.cap.lock || "none") === "none" ? [["cassKey", 1]] : []), ["frame", 1], ...(cfg.cap.lock && cfg.cap.lock !== "none" ? [["cap", 1]] : []), ...(derive(cfg).slotCap ? [["slotCap", 1]] : []), ["ring1", 1],
   ];
   if (cfg.led.on) list.push(["diffuser", 1]);
   if (derive(cfg).dock) list.push(["dockClip", 1]);
@@ -978,8 +987,9 @@ function exportList() {
 const selected = new Set(ALL_PARTS);
 function bedFor(name) {
   const g = GEO[name]; if (!g) return "";
+  // the same rule the export follows (worker.js): a Core One part goes to the XL only if it doesn't fit; the rest print on the XL
   const s = [0, 1, 2].map((i) => g.bbox[1][i] - g.bbox[0][i]).sort((a, b) => b - a);
-  if (s[0] <= 250 && s[1] <= 220) return "Core One";
+  if ((PART_INFO[name] || {}).printer === "Core One" && s[0] <= 250 - 12 && s[1] <= 220 - 12) return "Core One";
   return s[0] <= 360 && s[1] <= 360 ? "XL" : "Too big";
 }
 function renderParts() {
@@ -1048,12 +1058,15 @@ function readme(sizes, projNotes = []) {
   const I = insertSpec(cfg), M = `M${I.screw}`, nRings = 1 + cfg.shell.nExt, mt = mountOf(cfg), dk = d.dock;
   const glue = cfg.shell.join !== "screws";
   const baseIns = mt === "wall" ? 0 : 4;
-  const nIns = (glue ? baseIns : baseIns + 4 + 4 * nRings) + (cfg.cap.lock === "screws" ? 2 : 0);
+  const capLock = d.slotCap && cfg.cap.slot === "lock";
+  const nIns = (glue ? baseIns : baseIns + 4 + 4 * nRings) + (cfg.cap.lock === "screws" ? 2 : 0) + (capLock ? 1 : 0);
   if (nIns) {
     lines.push(`  ${nIns} x ${M} heat-set inserts, ${I.len} mm long (printed holes ${I.hole} mm, ${I.depth.toFixed(1)} mm deep):`);
-    lines.push(glue ? `       4 in the ${mt === "post" ? "post cap" : "hub"} top` : `       4 in the frame's rear face, 4 in the rear lugs of every ring, 4 in the ${mt === "post" ? "post cap" : "hub"} top`);
+    lines.push((glue ? `       ${baseIns ? `4 in the ${mt === "post" ? "post cap" : "hub"} top` : ""}` : `       4 in the frame's rear face, 4 in the rear lugs of every ring, 4 in the ${mt === "post" ? "post cap" : "hub"} top`)
+      + (capLock ? `${glue && !baseIns ? "" : ", "}1 under the finger dish for the top cap's screw` : ""));
     if (!glue) lines.push(`  ${4 * nRings} x ${M} x ${screwLen(6, I)} mm socket head: ring-to-ring joints (through each ring's front lugs)`);
   }
+  if (capLock) { const L = slotCapLayout(cfg, d); lines.push(`  1 x ${M} x ${screwLen(d.Sy - I.head_h - 0.3 - L.yFloor, I)} mm button or socket head (a security pin-Torx screw keeps guests out): top cap lock`); }
   if (glue) lines.push("  Glue: PETG or PLA - 2-part epoxy (30-minute gives time to align) or gel CA. ASA/ABS - acetone or ABS slurry.");
   if (!glue && mt !== "wall") lines.push(`  8 x ${M} x ${screwLen(cfg.back.t - I.head_h, I)} mm: back panel (counterbored, from outside; 4 used, 4 spare holes)`);
   if (mt !== "wall") lines.push(`  4 x ${M} x ${screwLen(9 - I.head_h + 4, I)} mm: ${mt === "post" ? "post cap" : "hub"} to ring 1 (from inside, through the bottom boss)`);
@@ -1081,7 +1094,7 @@ function readme(sizes, projNotes = []) {
   if (cfg.back.mode !== "none" && mt !== "wall") lines.push(`  Back: ${holes.all.filter(isOn).length} ${cfg.back.mode} holes, ${cfg.back.d} mm x ${cfg.back.pitch} pitch on a ${cfg.back.grid} mm grid (an estimate of Thread Boards' 12 mm thread: print the test coupon first)`);
   lines.push("", "ASSEMBLY (the pictures are in instructions.html)");
   const A = [];
-  if (nIns) A.push(`Melt the inserts in (${mt === "post" ? "post cap" : "hub"} top${dk ? ", the two under the slot floor for the dock clip" : ""}${glue ? "" : ", frame rear face, rear lugs of every ring"}).`);
+  if (nIns) A.push(`Melt the inserts in (${[baseIns ? `${mt === "post" ? "post cap" : "hub"} top` : "", dk ? "the two under the slot floor for the dock clip" : "", glue ? "" : "frame rear face, rear lugs of every ring", capLock ? "the one under the finger dish, from above, for the top cap" : ""].filter(Boolean).join(", ")}).`);
   else if (dk) A.push("Melt the two M3 short inserts into the slot floor for the dock clip.");
   A.push(glue ? `Dry-fit, then glue the frame onto ${mt === "wall" ? "the wall case" : "ring 1"}. Clamp or tape, check the seam all round.` : "Screw ring 1 to the frame from inside.");
   if (cfg.led.on) A.push(`LED: the top ${LED_END.len} mm of each side is covered by the frame's face. Cut the plug off the strip's lead, leaving its wires. Push them up under the cover at the top of the ${cfg.led.feed === "right" ? "right" : "left"} side (as you face the booth) and back through the slot into the box (tweezers help). Inside the box, rejoin them to the plug with three lever connectors (or solder), matching colors. Slide the strip's start ${LED_END.tuck} mm up under that cover, then lay it down that side, across the bottom and up the other side. Cut at the last mark that ends no more than ${LED_END.tuck} mm under the far cover, and slide the cut end up under it. Press in the diffuser.`);
@@ -1210,9 +1223,10 @@ $("#codeCopy").addEventListener("click", async () => {
 function howtoHardware() {
   const d = derive(cfg), mt = mountOf(cfg), S = stripOf(cfg), glue = cfg.shell.join !== "screws", out = [];
   const add = (icon, n, tag = "") => n && out.push({ icon, n, tag });
-  add("insert", (mt === "wall" ? 0 : 4) + (glue ? 0 : 4 + 4 * (1 + cfg.shell.nExt)), "M3");
+  const capLock = d.slotCap && cfg.cap.slot === "lock";
+  add("insert", (mt === "wall" ? 0 : 4) + (glue ? 0 : 4 + 4 * (1 + cfg.shell.nExt)) + (capLock ? 1 : 0), "M3");
   add("insert", d.dock ? 2 : 0, "M3 short");
-  add("screw", (mt === "wall" ? 0 : 4) + (d.dock ? 2 : 0), "M3");
+  add("screw", (mt === "wall" ? 0 : 4) + (d.dock ? 2 : 0) + (capLock ? 1 : 0), "M3");
   if (mt === "tripod") add("dowel", 3, legNumbers() ? `${(legNumbers().cut / 25.4).toFixed(1)}″` : "");
   if (mt === "post") { add("pole", 1, `${postNumbers().pole} mm`); add("insert", 2, "M5"); add("screw", 2, "M5 thumb"); add("anchor", 4, "#8 wood"); add("plywood", +cfg.mount.layers || 2, `${cfg.mount.base} mm`); }
   if (mt === "wall") add("anchor", 2, "#8 / M4");
@@ -1228,7 +1242,7 @@ function howtoInfo() {
   const pn = mt === "post" ? postNumbers() : null, w = mt === "wall" ? wallNumbers() : null;
   return {
     title: "Booth", subtitle: `${(TABLETS[cfg.tablet.preset] || TABLETS.custom).label}, ${cfg.orientation} · ${mt} · ${cfg.print.nozzle} mm ${cfg.print.material}`,
-    mount: mt, dock: !!d.dock, direct: !!d.direct, led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), ledFeed: cfg.led.feed === "right" ? "right" : "left", ledPlug: !!(stripOf(cfg) && stripOf(cfg).usb), nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
+    mount: mt, dock: !!d.dock, direct: !!d.direct, slotCap: d.slotCap ? cfg.cap.slot : "", led: cfg.led.on, ledLeds: stripOf(cfg) ? d.led.leds : 0, ledEdge: !!(stripOf(cfg) && stripOf(cfg).edge), ledFeed: cfg.led.feed === "right" ? "right" : "left", ledPlug: !!(stripOf(cfg) && stripOf(cfg).usb), nExt: mt === "wall" ? 0 : cfg.shell.nExt, parts, nozzle: cfg.print.nozzle, material: cfg.print.material,
     backHoles: mt !== "wall" && cfg.back.mode !== "none", liner: cfg.cass.liner,
     legCut: ln ? `${(ln.cut / 25.4).toFixed(1)}″` : "", poleCut: pn ? `${pn.pole} mm` : "", base: pn ? `${pn.B} mm` : "", layers: pn ? pn.layers : 0,
     keySpan: w ? w.span : 0, keyHeight: w ? `${(w.lockH / 25.4).toFixed(1)}″ up` : "",

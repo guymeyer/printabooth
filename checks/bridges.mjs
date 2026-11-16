@@ -37,4 +37,26 @@ for (const fm of ["hug", "universal"]) for (const nz of [0.4, 0.8]) for (const s
     E.flush();
   }
 }
+// the no-cassette fit with its top cap and screw lock: the cap (printed face down like the frame) and ring 1 with the cap's
+// notches and insert boss have no bridged area either, except ring 1's rear-camera keep-outs, bridged across by modifier
+for (const [ori, nz] of [["landscape", 0.4], ["portrait", 0.8]]) {
+  const c = structuredClone(g.DEFAULTS); c.fitMode = "direct"; c.orientation = ori; c.print.nozzle = nz; c.cap.slot = "lock";
+  const lh = nz * 0.5;
+  for (const p of ["slotCap", "ring1"]) {
+    const mods = E.exportSTL(p, c).mods, m = E.printed(p, c);   // ring 1's rear-camera keep-outs are bridged across, by modifier (exportSTL flushes, so first)
+    const cover = mods.length ? E.CrossSection.union(mods.map((b) => E.CrossSection.square([b.max[0] - b.min[0], b.max[1] - b.min[1]], false).translate([b.min[0], b.min[1]]))) : null;
+    const bb = m.boundingBox(), worst = [];
+    for (let z = lh * 1.5; z < bb.max[2] - lh; z += lh) {
+      const below = m.slice(z - lh), here = m.slice(z), cut = here.subtract(below.offset(0.5, "Square")), roof = cut.offset(-0.3, "Square");
+      for (const isl of roof.decompose()) {
+        const out = cover ? isl.subtract(cover) : isl;
+        if (out.area() >= 20) { const b = out.bounds(); worst.push(`z${z.toFixed(1)} ${(b.max[0] - b.min[0]).toFixed(0)}x${(b.max[1] - b.min[1]).toFixed(0)} @ x${b.min[0].toFixed(0)} y${b.min[1].toFixed(0)}`); }
+        isl.delete(); }
+      [below, here, cut, roof].forEach((x) => x.delete());
+    }
+    if (worst.length) bad++;
+    console.log(worst.length ? "FAIL" : "ok  ", "direct   ", `${nz} mm`, ori.padEnd(9), p.padEnd(8), worst.length ? worst.slice(0, 4).join(", ") : mods.length ? `bridged only inside ${mods.length} bridge-angle modifiers` : "no bridges");
+    E.flush();
+  }
+}
 process.exit(bad ? 1 : 0);

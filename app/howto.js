@@ -307,6 +307,16 @@ export function howtoBody(info) {
       (info.dock ? magnify(...pt(O, HW / 2, HH - 10), 260, 182, 34, P("M-34 -2h68v12h-68z") + P(rr(-5, -26, 10, 22, 2), { w: 1.6 }) + arrow(0, -40, 0, -26) + check(20, -16, 0.8))
         : plug(232, 190, 0) + pip(284, 228, { pose: "point", face: -1, s: 0.8 })),
       info.dock ? "Slide the iPad down through the slit, screen forward; it plugs itself in" : "Plug in, then slide the iPad down through the slit, screen forward");
+    if (info.slotCap) {
+      // the top cap: pressed down into the slit and the finger dish until both clips click; the lock adds one screw
+      const t0 = pt(O, HW / 2 - 70, -30), t1 = pt(O, HW / 2 + 70, -30), lift = 34;
+      const bar = (dy, dash) => P(`M${t0[0]} ${t0[1] - dy}L${t1[0]} ${t1[1] - dy}l0 -9L${t0[0]} ${t0[1] - dy - 9}z`, dash ? { dash: true, fill: "none" } : {});
+      const mid = [(t0[0] + t1[0]) / 2, (t0[1] + t1[1]) / 2];
+      step(G(head(O, sz, full) + bar(lift, true) + arrow(mid[0], mid[1] - lift - 14, mid[0], mid[1] - 14) + tag(mid[0] + 78, mid[1] - lift + 4, "click") +
+        (info.slotCap === "lock" ? screw(mid[0], mid[1] - lift - 52, 22) + driver(mid[0], mid[1] - lift - 64) : ""), "translate(48 78) scale(0.7)") +
+        (info.slotCap === "lock" ? "" : pip(284, 228, { pose: "push", face: -1, s: 0.8 })),
+        info.slotCap === "lock" ? "Press the top cap in until it clicks, then screw it down" : "Press the top cap in until it clicks");
+    }
 
   } else {
   { const co = centred(HW - 16, HH - 6, 4, 128, 150), tb = iso(co, 12, -64, 0);
@@ -322,7 +332,7 @@ export function howtoBody(info) {
     const o0 = centred(HW, HH, depthOf(full), 0, 0), top = iso(o0, HW / 2, -4, 4), mid = iso(o0, HW / 2, HH / 2, 0);
     step(G(head(o0, sz, full, { screen: true }) + mitt(top) + arrow(top[0], top[1] - 10, top[0], top[1] - 46), "translate(86 140) scale(0.55)") + check(140, 54) +
       G(head(o0, sz, full, { screen: true }) + mitt(mid) + arrow(mid[0], mid[1] - 10, mid[0], top[1] - 46), "translate(232 140) scale(0.55)") + cross(290, 54),
-      info.direct ? "Lift it out by its back edge from the finger scoop, never by the screen" : "Lift it out by the finger scoop, never by the screen"); }
+      info.slotCap ? `${info.slotCap === "lock" ? "Unscrew and lift" : "Lift"} the top cap by its back edge, then lift the iPad by its back edge, never by the screen` : info.direct ? "Lift it out by its back edge from the finger scoop, never by the screen" : "Lift it out by the finger scoop, never by the screen"); }
   step(head(at(full, 118, 124), sz, full, { screen: true, led: info.led }) + pip(270, 222, { pose: "up", mood: "o" }) + rays(270, 98) + rays(118, 40, 1.2), "Done. Smile.");
 
   return `<section class="pg"><h2>Before you start</h2><div class="grid">${start.join("")}</div></section>` +

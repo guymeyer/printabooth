@@ -304,6 +304,9 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
             <div class="qb">
               <div class="seg" data-path="fitMode" role="group" aria-label="Fit"><button type="button" data-v="universal">Universal</button><button type="button" data-v="hug">Single Size</button><button type="button" data-v="direct">Specific iPad</button></div>
               <p class="hint" id="bFitHint"></p>
+              <div class="field" id="bSlotCap"><label for="bSlotCapSel">Top of the slit</label>
+                <select id="bSlotCapSel" data-path="cap.slot"><option value="none">Open</option><option value="snap">Snap-in cap</option><option value="lock">Snap-in cap + screw lock</option></select>
+                <p class="hint" id="bSlotCapHint"></p></div>
             </div></section>
 
           <section class="q" aria-labelledby="bq4"><h2 id="bq4"><span class="num">4</span>Charge it as it slides in?</h2>
@@ -414,6 +417,9 @@ dialog.howto .hbar .btn { background: #fff; color: #111; border-color: #bbb; }
               </div>
               <p class="hint" id="fitHint"></p>
             </div>
+            <div class="field" id="slotCapField"><label for="slotCapSel">Top of the slit</label>
+              <select id="slotCapSel" data-path="cap.slot"><option value="none">Open</option><option value="snap">Snap-in cap</option><option value="lock">Snap-in cap + screw lock</option></select>
+              <p class="hint" id="slotCapHint"></p></div>
             <div class="row2">
               <div class="field"><label for="fit">Pocket clearance</label><div class="unit" data-u="mm"><input class="num-in" id="fit" type="number" step="0.1" min="0.2" max="2" data-path="fit"></div></div>
               <div class="field" id="csizeField"><label for="csize">Cassette size</label><div class="unit" data-u="mm"><input class="num-in" id="csize" type="number" step="2" min="160" max="330" data-path="cass.size"></div></div>
