@@ -414,6 +414,8 @@ function keepCustom(sel, v, label) {
   sel.querySelectorAll("option[data-extra]").forEach((o) => o.remove());
   if (![...sel.options].some((o) => o.value === String(v))) { const o = new Option(label, String(v)); o.dataset.extra = "1"; sel.add(o); }
 }
+// whether the shared square cassette takes this tablet as it is
+const universalFits = (c) => !validate({ ...c, fitMode: "universal" }).some((i) => i.level === "error" && /cassette/i.test(i.msg));
 const feetIn = (inches) => `${Math.floor(inches / 12)}′ ${(inches % 12).toFixed(1).replace(/\.0$/, "")}″`;
 function syncBasic() {
   const ph = cfg.print.projects === "one" ? "Every part in one XL project, laid out over as many beds as it needs (a new file every 9 beds). Parts meant for the Core One print on the XL."
@@ -423,7 +425,10 @@ function syncBasic() {
   opts($("#bPreset"), Object.entries(TABLETS).filter(([k]) => k !== "custom").map(([k, t]) => [k, t.label]), custom ? ["custom", "Custom size (set in Advanced)"] : null);
   $("#bPreset").value = custom ? "custom" : cfg.tablet.preset;
   $("#bCamSide").hidden = (cfg.orientation === "landscape") === (cfg.tablet.camEdge === "long");
-  $("#bFitHint").textContent = cfg.fitMode === "direct" ? "No cassette: the iPad slips in through a slit in the top into a pocket sized to it. Smallest booth, one less part; this iPad only, without a case."
+  const uniOk = universalFits(cfg), uniBtn = $('#basicPane [data-path="fitMode"] [data-v="universal"]');
+  if (uniBtn) uniBtn.disabled = !uniOk && cfg.fitMode !== "universal";
+  $("#bFitHint").textContent = !uniOk && cfg.fitMode !== "universal" && cfg.fitMode !== "direct" ? `This iPad doesn't fit the shared ${cfg.cass.size} mm shell, so the shell is sized to it, in a cassette you lift it out with.`
+    : cfg.fitMode === "direct" ? "No cassette: the iPad slips in through a slit in the top into a pocket sized to it. Smallest booth, one less part; this iPad only, without a case."
     : cfg.fitMode === "hug" ? "The shell is sized snugly to this iPad, in a cassette you lift it out with." : `One ${cfg.cass.size} mm square shell takes any 11″ iPad in its own cassette.`;
   const dockWith = (side) => !!derive({ ...cfg, camSide: side, fitMode: cfg.fitMode === "direct" ? "direct" : "hug", dock: { ...cfg.dock, on: true } }).dock;
   const other = cfg.camSide === "left" ? "right" : "left", here = dockWith(cfg.camSide), flip = !here && dockWith(other), canDock = here || flip;
@@ -636,7 +641,12 @@ $("#reset").addEventListener("click", () => {
   cfg = clone(DEFAULTS); focus = null; changed(0);
   if (JSON.stringify(cfg) !== was) sfx.play("delete");   // only when there was something to clear
 });
-$("#bPreset").addEventListener("change", (e) => { if (e.target.value === "custom") return; presetSel.value = e.target.value; presetSel.dispatchEvent(new Event("change")); });
+$("#bPreset").addEventListener("change", (e) => {
+  if (e.target.value === "custom") return;
+  // Basic keeps to choices that work: an iPad too big (or thick) for the shared cassette moves to a shell sized to it
+  if (cfg.fitMode === "universal" && !universalFits({ ...cfg, tablet: { ...cfg.tablet, ...TABLETS[e.target.value] } })) cfg.fitMode = "hug";
+  presetSel.value = e.target.value; presetSel.dispatchEvent(new Event("change"));
+});
 { // Basic / Advanced tabs; the choice is remembered on this browser
   const MODE = "printabooth.mode";
   const setMode = (m) => {

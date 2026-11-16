@@ -16,6 +16,9 @@ const cases = [
   ["A16 portrait, wall", { orientation: "portrait", camSide: "left", mount: { type: "wall" } }],
   ["iPad mini portrait + dock", { preset: "ipad-mini", orientation: "portrait", camSide: "right", dock: { on: true } }],
   ["iPad Pro 11 landscape, post", { preset: "ipad-pro-11", mount: { type: "post" } }],
+  ["iPad 9th gen landscape (thick, home button)", { preset: "ipad-9" }],
+  ["iPad Pro 13 landscape", { preset: "ipad-pro-13" }],
+  ["iPad Pro 12.9 portrait + dock", { preset: "ipad-pro-129", orientation: "portrait", camSide: "right", dock: { on: true } }],
 ];
 const merge = (a, b) => { for (const [k, v] of Object.entries(b)) a[k] = v && typeof v === "object" && !Array.isArray(v) ? merge(a[k] || {}, v) : v; return a; };
 for (const [name, o] of cases) {

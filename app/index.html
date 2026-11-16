@@ -136,6 +136,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
 
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 3px; gap: 3px; }
 .seg button { border: 0; background: transparent; border-radius: 6px; padding: 6px 8px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.seg button:disabled { opacity: .45; cursor: not-allowed; }
 .seg button[aria-pressed="true"] { background: var(--raised); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line-2); }
 
 .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 600; font-size: 13px; }

@@ -155,9 +155,15 @@ export const SEAM_REAR = new Set(["frame", "ring1", "ringExt", "ringExt2", "ring
 
 export const TABLETS = {
   "ipad-a16": { label: "iPad (A16) / 10th gen", w: 248.6, h: 179.5, t: 7.0, r: 18, sw: 227.0, sh: 157.8, camEdge: "long", camOff: 5.4, bump: 26 },
+  "ipad-9": { label: "iPad 10.2\" (9th gen)", w: 250.6, h: 174.1, t: 7.5, r: 13, sw: 207.8, sh: 155.9, camEdge: "short", camOff: 10.5, bump: 24 },
   "ipad-air-11": { label: "iPad Air 11\" (M2–M4)", w: 247.6, h: 178.5, t: 6.1, r: 18, sw: 227.0, sh: 157.8, camEdge: "long", camOff: 5.2, bump: 26 },
-  "ipad-pro-11": { label: "iPad Pro 11\" (M4+)", w: 249.7, h: 177.5, t: 5.3, r: 16, sw: 232.8, sh: 160.5, camEdge: "long", camOff: 4.3, bump: 38 },
-  "ipad-mini": { label: "iPad mini (A17 Pro)", w: 195.4, h: 134.8, t: 6.3, r: 16, sw: 176.5, sh: 115.9, camEdge: "short", camOff: 4.7, bump: 24 },
+  "ipad-air-5": { label: "iPad Air 10.9\" (M1, 5th gen)", w: 247.6, h: 178.5, t: 6.1, r: 18, sw: 227.0, sh: 157.8, camEdge: "short", camOff: 5.2, bump: 26 },
+  "ipad-air-13": { label: "iPad Air 13\" (M2–M4)", w: 280.6, h: 214.9, t: 6.1, r: 18, sw: 262.9, sh: 197.1, camEdge: "long", camOff: 4.5, bump: 26 },
+  "ipad-pro-11": { label: "iPad Pro 11\" (M4/M5)", w: 249.7, h: 177.5, t: 5.3, r: 16, sw: 232.8, sh: 160.5, camEdge: "long", camOff: 4.3, bump: 38 },
+  "ipad-pro-11-m2": { label: "iPad Pro 11\" (M1/M2)", w: 247.6, h: 178.5, t: 5.9, r: 18, sw: 229.8, sh: 160.5, camEdge: "short", camOff: 4.5, bump: 36 },
+  "ipad-pro-13": { label: "iPad Pro 13\" (M4/M5)", w: 281.6, h: 215.5, t: 5.1, r: 16, sw: 264.8, sh: 198.6, camEdge: "long", camOff: 4.3, bump: 38 },
+  "ipad-pro-129": { label: "iPad Pro 12.9\" (M1/M2)", w: 280.6, h: 214.9, t: 6.4, r: 18, sw: 262.9, sh: 197.1, camEdge: "short", camOff: 4.5, bump: 36 },
+  "ipad-mini": { label: "iPad mini (6th gen / A17 Pro)", w: 195.4, h: 134.8, t: 6.3, r: 16, sw: 176.5, sh: 115.9, camEdge: "short", camOff: 4.7, bump: 24 },
   custom: { label: "Custom size" },
 };
 

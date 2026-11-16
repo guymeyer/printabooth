@@ -89,7 +89,7 @@ npm run check:print           # full print audit of the default hugged landscape
 
 - The back panel's thread (12 mm x 1.75 on a 25 mm grid) is an estimate of Thread Boards' 12 mm screws, which aren't published. The export includes a one-hole test coupon: print it first.
 - USB-C plug head sizes for the dock are typical measurements, not published specs. Measure yours and print the dock clip first.
-- Tablet presets are estimates from published specs. Measure your iPad and use Custom size before a big print. The tray's pocket corners are deliberately tighter than any iPad's, so the corner radius doesn't need to be exact.
+- Tablet presets cover the iPads of the last five years: 10.2″ 9th gen, A16 / 10th gen, Air 10.9″ M1, Air 11″ and 13″ (M2–M4), Pro 11″ and 12.9″ (M1/M2), Pro 11″ and 13″ (M4/M5) and mini 6th gen / A17 Pro. The 13″ models and the thicker 9th gen don't fit the shared 270 mm cassette; Basic moves them to a snug shell. Sizes are Apple's; corner radius, camera position and bump size are estimates from published specs. Measure your iPad and use Custom size before a big print. The tray's pocket corners are deliberately tighter than any iPad's, so the corner radius doesn't need to be exact.
 - The `.3mf` presets come from the profile bundle shipped with PrusaSlicer 2.9.7. If your installed profiles are newer, a few values may show as modified when you open a project.
 
 ## License
