@@ -7,7 +7,8 @@ export const DEFAULTS = {
   orientation: "landscape",
   camSide: "left",
   fit: 0.8,
-  fitMode: "universal",            // "universal" = one square cassette size fits most; "hug" = shell sized to this tablet
+  fitMode: "universal",            // "universal" = one square cassette size fits most; "hug" = shell sized to this tablet;
+                                   // "direct" = no cassette: the iPad slips in through a slit in the top into a pocket sized to it
   cass: { size: 270, t: 12, mask: 2, back: 2.4, overlap: 5, liner: 0.5, portGap: 9, portSide: "auto", bumpCorner: "pair" },
   shell: { cornerR: 33, frameD: 20, lip: 2, wall: 4, ringD: 50, ring1D: 85, nExt: 1, join: "glue" },   // join: "glue" | "screws"
   // one continuous strip: starts at the top of the feed side (its lead goes straight back into the box), runs down, across the
@@ -216,6 +217,8 @@ const DISH = { hw: 30, depth: 10, r: 8, len: 40 };
 // grip lip on the cassette's back face: a rounded cove under a solid top lip, where the scoop meets the cassette
 const GRIP = { hw: 26, lip: 3, r: 3.25 };
 const POCKET = { hw: 30, len: 38, depth: 9, r: 8 };
+const BTN_DEPTH = 1.0;
+const DOCK_STOP_POCKET = 3;   // no-cassette fit: how far the dock clip may reach back into ring 1's stop   // the button groove round a tablet pocket (BTN.depth in the builders)
 const TAB = { x0: 31, x1: 57, fx: 44 };           // cap tabs span |x| 31..57; fasteners at |x| = 44
 
 // which way the USB-C port faces, in model coordinates, from the front camera's position
@@ -242,7 +245,8 @@ export function ferSpec(c) {
   return { tl: 26, rS, rC, hc: Math.ceil((rC - rS) * 1.1 * 2) / 2, cup: 40 };
 }
 export function derive(c) {
-  const land = c.orientation === "landscape", tb = c.tablet, f = c.fit, hug = c.fitMode === "hug";
+  // "direct" is hug without the tray: the shell is still sized to this tablet, the slot is the tablet's own pocket
+  const land = c.orientation === "landscape", tb = c.tablet, f = c.fit, direct = c.fitMode === "direct", hug = c.fitMode === "hug" || direct;
   const pw = (land ? tb.w : tb.h) + 2 * f, ph = (land ? tb.h : tb.w) + 2 * f;
   const iw = land ? tb.w : tb.h, ih = land ? tb.h : tb.w;            // tablet outline as mounted
   // the LED channel is a U (sides and bottom) cut into the solid slot walls; it stops under the cassette's accent band instead
@@ -257,17 +261,27 @@ export function derive(c) {
     // "auto": the port is on the edge the front camera implies (iPads: port bottom when held portrait with the rear camera
     // top-left from the back). "both": plug room on both opposite edges. Model -x is the viewer's right.
     const ps = c.cass.portSide === "both" ? "both" : "auto", pd = portDir(c);
-    let mL = TRAY_WALL, mR = TRAY_WALL, mT = TRAY_WALL, mB = TRAY_WALL;
+    const w0 = direct ? 0 : TRAY_WALL;                                // no tray walls: the slot is the iPad's pocket
+    let mL = w0, mR = w0, mT = w0, mB = w0;
     if (dockOn) mB = plugOf(c).len + DOCK.floor + DOCK.gap;       // the clip stands on the slot floor under the iPad's edge
     else if (ps === "both") { if (pd[0]) { mL += g; mR += g; } else { mT += g; mB += g; } }
     else if (pd[0] < 0) mL += g; else if (pd[0] > 0) mR += g; else if (pd[1] > 0) mT += g; else mB += g;
     // LED off: the frame's side wall is whole lines; the tray's outer edge (inside the slot) takes the difference
-    if (!c.led.on) { const dx = 4 - P.sideNoLed; mL += dx; mR += dx; }
-    Cw = pw + mL + mR; Ch = ph + mT + mB; dockMB = mB;
+    if (!c.led.on && !direct) { const dx = 4 - P.sideNoLed; mL += dx; mR += dx; }
     ipadOff = [(mL - mR) / 2, (mB - mT) / 2];
-    cassT = c.cass.back + tb.t - 0.3;                                 // tablet glass stands 0.3 mm proud of the tray rim
     tabletZ = lip + c.cass.liner;                                      // glass face sits against the lip (+ felt liner)
-    cassZ = tabletZ + 0.3;
+    if (direct) {
+      // the "cassette" layer is the iPad itself: the slot (cassette + chanClr all round) is the iPad + fit + plug room, and the
+      // iPad's back meets ring 1's stop with chanClr to spare
+      // the iPad stands on the slot floor (or mB above it, on the dock), so its centre sits chanClr higher than in a tray
+      Cw = pw + mL + mR - 2 * chanClr; Ch = ph + mT + mB - 2 * chanClr; dockMB = mB;
+      ipadOff = [ipadOff[0], ipadOff[1] + chanClr];
+      cassT = tb.t; cassZ = tabletZ;
+    } else {
+      Cw = pw + mL + mR; Ch = ph + mT + mB; dockMB = mB;
+      cassT = c.cass.back + tb.t - 0.3;                               // tablet glass stands 0.3 mm proud of the tray rim
+      cassZ = tabletZ + 0.3;
+    }
     chZ1 = cassZ + cassT + chanClr;
   } else {
     Cw = Ch = c.cass.size; cassT = c.cass.t;
@@ -277,7 +291,8 @@ export function derive(c) {
   const chW = Cw + 2 * chanClr, chH = Ch + 2 * chanClr;
   let Sx, Sy;
   if (hug) {
-    const side = c.led.on ? 2.5 + c.led.w + c.led.skin : P.sideNoLed;
+    // direct: the slot walls also take the button groove, so the wall to the LED channel keeps its 2.5 mm behind it
+    const side = (c.led.on ? 2.5 + c.led.w + c.led.skin : P.sideNoLed) + (direct ? BTN_DEPTH : 0);
     // top/bottom must leave room for the finger scoop above the cassette when there's no cap
     let sideY = (c.cap.lock || "none") === "none" ? Math.max(side, DISH.depth + 2.5) : side;
     // dock: the clip's inserts need solid wall under the slot floor, above the LED wire pocket
@@ -288,7 +303,8 @@ export function derive(c) {
   } else { Sx = (Cw + 36) / 2; Sy = (Ch + 36) / 2; }
   const Sw = 2 * Sx, Sh = 2 * Sy;
   // cassette corner radius, and the slot that follows it
-  const rCass = hug ? Math.min(tb.r + f + 2, 20) : 10, rSlot = rCass + chanClr;
+  // direct: the slot keeps the iPad's own corner radius (+ fit), which still contains the iPad and keeps the corners round
+  const rCass = direct ? tb.r + f - chanClr : hug ? Math.min(tb.r + f + 2, 20) : 10, rSlot = rCass + chanClr;
   // outer corner radius: the setting, reduced if needed so the shell wall around the slot's corners stays >= 3 mm
   const cornerWall = (R) => {
     const a = R - (Sx - chW / 2) - rSlot, b = R - (Sy - chH / 2) - rSlot;
@@ -364,7 +380,10 @@ export function derive(c) {
     notch: hug
       ? notchSpec([cam[0], cam[1] - chanClr], winC, [winW / 2, winH / 2], [ipadOff[0], ipadOff[1] - chanClr], [iw / 2, ih / 2])
       : notchSpec(cam, [0, 0], [((land ? tb.sw : tb.sh) + 2) / 2, ((land ? tb.sh : tb.sw) + 2) / 2], [0, 0], [pw / 2 - f, ph / 2 - f]),
-    fd, glue, lip, capless, yS, rCass, rSlot, land, hug, pw, ph, iw, ih, Cw, Ch, cassT, cassZ, tabletZ, ipadOff, Sw, Sh, Sx, Sy, R, innerX, innerY, offX, A, B,
+    // direct: the finger dish in ring 1 reaches 6 mm below the iPad's top edge, so a finger can lift the iPad by its back
+    dishDepth: direct ? Math.max(DISH.depth, Sy - (ipadOff[1] - chanClr + ph / 2) + 6) : DISH.depth,
+    ipadTop: ipadOff[1] - chanClr + ph / 2,                                  // the iPad pocket's top edge (world y)
+    fd, glue, lip, capless, yS, rCass, rSlot, land, hug, direct, pw, ph, iw, ih, Cw, Ch, cassT, cassZ, tabletZ, ipadOff, Sw, Sh, Sx, Sy, R, innerX, innerY, offX, A, B,
     chanClr, chW, chH, chZ1, winW, winH, winR, winC, cam, camShell: [cam[0], cam[1] - chanClr], bezel,
     thrMajor: legThread(c), thrPitch: 4, seat: 30, tabLen, ...mainShell(c, fd, glue ? chZ1 - 0.05 - fd : 0),
     seamX: (() => { if (mountOf(c) === "wall") return 0; const flat = Sx - R, drum = baseR(c); return drum + 6 <= flat - 3 ? drum + 6 : 0; })(),
@@ -521,7 +540,7 @@ export function validate(c) {
   }
   // dock: the plug points up, so the port must be on the tray's bottom edge
   if (c.dock && c.dock.on) {
-    if (!d.hug) add("error", "The USB-C dock needs the hugged tray.", fx("Hug this tablet", ["fitMode", "hug"]));
+    if (!d.hug) add("error", "The USB-C dock needs a shell sized to this iPad.", fx("Hug this tablet", ["fitMode", "hug"]));
     else if (portDir(c)[1] >= 0) {
       const fix = ["left", "right"].map((s) => ({ ...c, orientation: "portrait", camSide: s })).find((c2) => portDir(c2)[1] < 0);
       add("error", d.land ? "Docking needs the USB-C port on the bottom edge, which on this iPad means portrait. In landscape, plug the cable in before you slide the cassette down, or switch to portrait."
@@ -529,7 +548,7 @@ export function validate(c) {
         fix ? fx(d.land ? "Switch to portrait" : `Camera on the ${fix.camSide}`, ["orientation", "portrait"], ["camSide", fix.camSide]) : fx("Turn the dock off", ["dock.on", false]));
     } else if (d.dock) {
       const k = d.dock, chZ1 = d.chZ1;
-      if (k.zB > chZ1 - 0.25) add("error", `A ${k.t} mm thick plug head is too thick for this iPad's slot. Use a slimmer cable or check the size.`, fx("Use the Apple cable", ["dock.brand", "apple"]));
+      if (k.zB > (d.direct ? chZ1 + DOCK_STOP_POCKET : chZ1 - 0.25)) add("error", `A ${k.t} mm thick plug head is too thick for this iPad's slot. Use a slimmer cable or check the size.`, fx("Use the Apple cable", ["dock.brand", "apple"]));
       if (k.zBootF - 0.25 < 1.2 + 0.01) add("error", "The plug head is too thick to clear the front lip.", fx("Use the Apple cable", ["dock.brand", "apple"]));
       if ((c.dock.brand || "") === "custom" && !(k.w > 5 && k.t > 2 && k.len > 6 && k.cable > 2)) add("error", "Enter your plug head's width, thickness and length, and the cable diameter.", fx("Use the Apple cable", ["dock.brand", "apple"]));
     }
@@ -560,6 +579,9 @@ export function makeEngine(wasm) {
   const sub = (a, ...b) => { let r = a; for (const x of b) r = T(r.subtract(x)); return r; };
   const add = (a, ...b) => { let r = a; for (const x of b) r = T(r.add(x)); return r; };
   const inter = (a, b) => T(a.intersect(b));
+  // drop crumbs: a deep finger dish (no-cassette fit) can leave a sliver of its cradle floating free; keep the main body only
+  const mainBody = (m) => { const parts = m.decompose(); if (parts.length < 2) { parts.forEach((x) => x.delete()); return m; }
+    parts.sort((a, b) => b.volume() - a.volume()); const keep = T(parts[0]); parts.slice(1).forEach((x) => x.delete()); return keep; };
 
   function thread(major, pitch, length, clr = 0) {
     const depth = 0.6 * pitch, n = Math.max(32, Math.min(160, Math.round(major * 4)));
@@ -615,7 +637,7 @@ export function makeEngine(wasm) {
   // reliefs in the tablet pocket (cx, cy = pocket centre; zFront..zBack = where the tablet sits; zb..t = back plate):
   //  - rear camera bump: a keep-out pocket through the back ledge at every corner, so any orientation clears it
   //  - buttons: a groove around the pocket wall at the tablet's mid-thickness
-  const BTN = { depth: 1.0, h: 3.2 };
+  const BTN = { depth: BTN_DEPTH, h: 3.2 };
   function pocketReliefs(c, cx, cy, pw, ph, rPocket, zFront, zBack, zb, t) {
     const K = Math.max(0, Math.min(c.tablet.bump || 0, Math.min(pw, ph) / 2 - 10)), out = [];
     // "auto": the one corner the camera lands in; "pair": that corner and its diagonal opposite (iPad either way up); "all": every corner
@@ -643,7 +665,7 @@ export function makeEngine(wasm) {
   }
   // finger dish in world coordinates (grow > 0 gives the cradle that closes it underneath)
   function dish(d, grow = 0) {
-    const zA = d.cassZ + d.cassT + 0.01, zB = zA + DISH.len, cy = d.Sy - DISH.depth + DISH.r, r = DISH.r + grow;
+    const zA = d.cassZ + d.cassT + 0.01, zB = zA + DISH.len, cy = d.Sy - d.dishDepth + DISH.r, r = DISH.r + grow;
     const pts = [];
     // the far end rises at 45 degrees (ring 1 prints front-down, so a vertical end wall would be a flat ceiling inside the scoop)
     for (const sx of [-1, 1]) for (const [z, up] of [[zA - 1, 0], [zA - 1, 40], [zB - DISH.r, 0], [zB - DISH.r + 40, 40]])
@@ -764,7 +786,9 @@ export function makeEngine(wasm) {
     const { Sy, chW, chZ1 } = d, BIG = 2000;
     // split 0.05 mm in front of the slot's back face so the cut never lands on a coplanar face (avoids a paper-thin film)
     const bezel = inter(frameFull(c, false), box(-BIG, BIG, -BIG, BIG, -BIG, chZ1 - 0.05));
-    const tongue = d.capless
+    // no band at the top: the tongue runs all the way round, except over the slit (the camera bump slides down past it there)
+    const tongue = d.direct ? sub(lapTongue(d, c, chZ1 - 0.05), box(d.ipadOff[0] - d.pw / 2 - 1, d.ipadOff[0] + d.pw / 2 + 1, d.ipadTop, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1))
+      : d.capless
       ? sub(lapTongue(d, c, chZ1 - 0.05), box(-BIG, BIG, d.yS - 0.15, BIG, chZ1 - 1, chZ1 + LAP.len + 1))
       : sub(lapTongue(d, c, chZ1 - 0.05), box(-chW / 2 - 0.5, chW / 2 + 0.5, 0, Sy + 5, chZ1 - 1, chZ1 + LAP.len + 1));
     let tg = tongue;
@@ -813,7 +837,10 @@ export function makeEngine(wasm) {
     const cuts = [
       mv(rr(d.winW, d.winH, d.winR, -1, lip + 0.01), d.winC[0], d.winC[1]),
       rr(chW, chH, d.rSlot, lip, chZ1),
-      box(-chW / 2, chW / 2, 0, Sy + 5, lip, chZ1),
+      // the slot opens up through the top: full width for a cassette; with no cassette only a slit the iPad's own width
+      // (pocket + fit) above its top edge, so the shell fills the rest, plug room included
+      ...(d.direct ? [box(-chW / 2, chW / 2, 0, d.ipadTop, lip, chZ1), box(d.ipadOff[0] - d.pw / 2, d.ipadOff[0] + d.pw / 2, 0, Sy + 5, lip, chZ1)]
+        : [box(-chW / 2, chW / 2, 0, Sy + 5, lip, chZ1)]),
       rr(Cw - 26, Ch - 26, 14, chZ1 - 0.01, fd + 1),
       box(-chW / 2, -(Cw / 2 - 35), -14, 14, chZ1 - 0.01, fd + 1),
       box(Cw / 2 - 35, chW / 2, -14, 14, chZ1 - 0.01, fd + 1),
@@ -824,7 +851,7 @@ export function makeEngine(wasm) {
       box(-TAB.x1 - 0.3, -TAB.x0 + 0.3, Sy - 4, Sy + 1, chZ1, fd + 1),
       T(T(scoopCS(d).extrude(fd - chZ1 + 1.01)).translate([0, 0, chZ1 - 0.01])));
     // the shell's slot walls stop at the shoulders; the cassette's band sits on them (the lip in front stays whole)
-    if (d.capless) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
+    if (d.capless && !d.direct) cuts.push(box(-3000, 3000, d.yS - 0.15, 3000, lip, chZ1 - 0.03));   // just past the bezel split so no zero-thickness film is left at the split
     if (c.led.on) {
       // one unbroken channel (and diffuser recess) round the U up to the end bays, the bays as tunnels under the face, and the
       // feed slot from the feed side's bay back into the box
@@ -837,6 +864,22 @@ export function makeEngine(wasm) {
       // (the channel floor is bridged face down; the 3MF project sets the bridge angle per run, see bridgeModifiers)
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
+    if (d.direct) {
+      // no tray: the slot itself gets the tray's reliefs. A groove round the walls at mid-thickness clears the buttons, and
+      // keep-outs in the stop (ring 1's front, behind chZ1) clear the rear camera bump
+      const cx = d.ipadOff[0], cy = d.ipadOff[1] - d.chanClr;
+      cuts.push(...pocketReliefs(c, cx, cy, d.pw, d.ph, d.rSlot, d.tabletZ, d.tabletZ + c.tablet.t, chZ1 + 1, chZ1 + 1.5));
+      // the rear camera bump slides down the stop as the iPad goes in from the top: each keep-out runs on up to the top
+      const K = Math.max(0, Math.min(c.tablet.bump || 0, Math.min(d.pw, d.ph) / 2 - 10)), [rx, ry] = d.rearCorner, mode = c.cass.bumpCorner || "pair";
+      const corners = mode === "all" ? [[-1, -1], [-1, 1], [1, -1], [1, 1]] : mode === "pair" ? [[rx, ry], [-rx, -ry]] : [[rx, ry]];
+      if (K > 0) for (const [sx, sy] of corners) {
+        const bx = cx + sx * (d.pw / 2 - K / 2), by = cy + sy * (d.ph / 2 - K / 2);
+        cuts.push(box(bx - K / 2, bx + K / 2, by - K / 2 + 5, d.Sy + 5, chZ1 - 0.01, chZ1 + 1.5));
+      }
+      // the dock clip is deeper than the iPad: its back sits in a pocket in the stop
+      if (d.dock) { const k = d.dock, hw = k.halfW + DOCK.earW + 0.4;
+        cuts.push(box(k.x - hw, k.x + hw, k.yBot - 0.4, k.yFace + 0.4, chZ1 - 0.1, k.zB + 0.3)); }
+    }
     if (d.dock) cuts.push(...dockCuts(c, d));
     cuts.push(seamGroove(d, -1, fd + 1));
     const I = insertSpec(c);
@@ -846,6 +889,9 @@ export function makeEngine(wasm) {
       const tongue = lapTongue(d, c, fd);
       out = add(out, d.capless ? tongue : sub(tongue, box(-TAB.x1 - 1, TAB.x1 + 1, 0, Sy + 5, fd - 1, fd + LAP.len + 1)));
     }
+    // the finger dish's rounded front reaches forward past the iPad; with no cassette (no band covering it) it may only cut
+    // behind the iPad's back, or it would gouge the back of the faceplate down to a thin skin
+    if (d.direct) return sub(out, inter(dish(d), box(-3000, 3000, -3000, 3000, d.tabletZ + c.tablet.t, 3000)));
     return d.capless ? sub(out, dish(d)) : out;
   }
 
@@ -920,7 +966,7 @@ export function makeEngine(wasm) {
     }
     if (first && d.capless) {
       // the finger dish continues back from the frame; a cradle underneath keeps it closed off from the inside
-      adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 4, DISH.hw + 4, innerY - 30, innerY + 0.5, (d.glue ? d.chZ1 - d.fd : 0) + 0.01, D - 0.01)));
+      adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 6, DISH.hw + 6, Math.min(innerY - 30, d.Sy - d.dishDepth - d.cradle - 2), innerY + 0.5, (d.glue ? d.chZ1 - d.fd : 0) + 0.01, D - 0.01)));
       adds.push(box(-45, 45, -innerY - 0.1, -innerY + 9, d.glue ? d.chZ1 - 0.05 - d.fd : 0, D - 6));   // runs down to the print bed
       cuts.push(mv(dish(d), 0, 0, -d.fd));
       for (const [x, z] of d.baseScrews) {
@@ -956,7 +1002,8 @@ export function makeEngine(wasm) {
     }
     body = add(body, U(adds));
     cuts.push(seamGroove(d, (d.glue && first ? d.chZ1 - 0.05 - d.fd : 0) - 1, D + LAP.len + 1));
-    return sub(body, U(cuts));
+    const out = sub(body, U(cuts));
+    return first && d.direct ? mainBody(out) : out;
   }
 
   // ------------------------------------------------------------ wall mount
@@ -967,13 +1014,14 @@ export function makeEngine(wasm) {
     let body = sub(shellProfile(d, 0, D), rr(2 * innerX, 2 * innerY, d.R - d.wall, -1, D + 1));
     const front = d.chZ1 - 0.05 - d.fd, adds = [lapTongue(d, c, D), stopBand(c)], cuts = [lapSocket(d, c, front)];
     if (d.capless) {
-      adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 4, DISH.hw + 4, innerY - 30, innerY + 0.5, front + 0.05 + 0.01, D - 0.01)));
+      adds.push(inter(mv(dish(d, d.cradle), 0, 0, -d.fd), box(-DISH.hw - 6, DISH.hw + 6, Math.min(innerY - 30, d.Sy - d.dishDepth - d.cradle - 2), innerY + 0.5, front + 0.05 + 0.01, D - 0.01)));
       cuts.push(mv(dish(d), 0, 0, -d.fd));
     }
     cuts.push(box(-10, 10, -Sy - 1, -innerY + 1, D - 14, D + LAP.len + 1));   // cables out of the bottom, close to the wall (a USB-A plug passes)
     body = add(body, U(adds));
     cuts.push(seamGroove(d, front - 1, D + LAP.len + 1));
-    return sub(body, U(cuts));
+    const out = sub(body, U(cuts));
+    return d.direct ? mainBody(out) : out;
   }
   // wall plate: the back panel's groove, no threads, two keyholes (head pocket from the inside, KEY.lip left at the wall face)
   // and a hole for a cable coming out of the wall
@@ -1268,7 +1316,7 @@ export function makeEngine(wasm) {
   const KEYS = {
     cassette: (c) => [c.tablet, c.orientation, c.camSide, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).Cw, derive(c).lip, derive(c).dock, derive(c).Ch],
     cassKey: (c) => [c.tablet, c.orientation, c.fit, c.fitMode, c.cass, c.shell, c.led, c.cap, derive(c).lip],
-    frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode === "hug" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
+    frame: (c) => [dims(c), c.fitMode, c.cass, c.shell, c.led, c.inserts, c.cap, c.fitMode !== "universal" ? [c.tablet, c.orientation, c.camSide, c.fit] : 0],
     cap: (c) => [dims(c), c.fitMode, c.cass, c.tablet.t, c.shell, c.cap, c.inserts],
     diffuser: (c) => [dims(c), c.shell.cornerR, c.led],
     ring1: (c) => [dims(c), c.shell, c.cap, c.inserts, c.led, c.cass, c.fitMode, c.tablet, c.orientation, c.camSide, c.fit],
@@ -1398,7 +1446,7 @@ export const place = (m, it) => (it.spin ? m.rotate([0, 0, 180]) : m).translate(
 export function assembly(c) {
   const d = derive(c), fd = d.fd, D = c.shell.ringD, D1 = d.D1;
   const items = [
-    { part: "cassette", pos: [0, -d.chanClr, d.cassZ] },
+    ...(d.direct ? [] : [{ part: "cassette", pos: [0, -d.chanClr, d.cassZ] }]),
     ...(d.capless && !d.hug ? [{ part: "cassKey", pos: [0, -d.chanClr, d.cassZ] }] : []),
     { part: "frame", pos: [0, 0, 0] },
     ...(d.capless ? [] : [{ part: "cap", pos: [0, 0, 0] }]),

@@ -13,7 +13,8 @@ try { execFileSync("prusa-slicer", ["--help"], { stdio: "ignore" }); } catch (e)
 const E = g.makeEngine(await Module()), dir = mkdtempSync(join(tmpdir(), "pb-slice-"));
 let bad = 0;
 const cases = [["universal, 0.8", { print: { nozzle: 0.8 } }], ["hug portrait + dock, 0.4", { fitMode: "hug", orientation: "portrait", camSide: "right", dock: { on: true }, print: { nozzle: 0.4 } }],
-  ["hug landscape, Adafruit, 0.6", { fitMode: "hug", led: { strip: "adafruit" }, print: { nozzle: 0.6 } }]];
+  ["hug landscape, Adafruit, 0.6", { fitMode: "hug", led: { strip: "adafruit" }, print: { nozzle: 0.6 } }],
+  ["no cassette, portrait + dock, 0.8", { fitMode: "direct", orientation: "portrait", camSide: "right", dock: { on: true }, print: { nozzle: 0.8 } }]];
 for (const [name, o] of cases) {
   const c = structuredClone(g.DEFAULTS);
   for (const [k, v] of Object.entries(o)) c[k] = typeof v === "object" ? { ...c[k], ...v } : v;

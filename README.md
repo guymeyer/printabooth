@@ -4,6 +4,10 @@ A browser configurator for a 3D-printed, modular iPad photo booth. Pick the tabl
 
 ![Head preview](docs/screenshot.png)
 
+## No cassette (experimental, branch `cassetteless`)
+
+A third fit, "No cassette" ("Just mine, no cassette" in Basic): for one iPad in one orientation. The iPad's pocket is cut straight into the frame (its corner radius plus the fit clearance, plus room for the plug), and it opens up through the top only as a slit the iPad's own width and thickness; the shell fills everything else, so there's no cassette and no key. The iPad slips in from the top, face against the felted lip, and lifts out by its back edge from the finger dish in ring 1, which runs 6 mm below its top edge. The pocket walls carry the button groove, and ring 1's stop has keep-outs for the rear camera bump that run up to the top, so the bump clears as the iPad slides in. With the dock, the clip's back sits in a pocket in the stop. Compared with the snug cassette, the face is about 4 mm smaller each way, the front frame 2.4 mm shallower, and the cassette is one less part. It won't take an iPad in a case. `checks/direct.mjs` places the iPad (with a rear camera bump) in seven booths and checks it touches nothing, that it slides out of the top, and that the slit is no wider than the iPad.
+
 ## Basic and Advanced
 
 Two tabs sit at the top of the settings. **Basic** walks through eleven plain questions (which iPad, which way the screen sits, whether other iPads should fit, the USB-C dock, the light ring, how it stands and how high the camera is, room for electronics, the back panel, your printer, colors, and the download), each answered with a dropdown, a switch or a choice of buttons. **Advanced** is the full set of numbered steps with every dimension exposed. Both edit the same booth, so you can switch at any time; anything set to a custom value in Advanced shows as its own choice in Basic. The page remembers which tab you used.
