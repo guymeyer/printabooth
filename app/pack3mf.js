@@ -75,6 +75,14 @@ export function projectFiles(beds, meshes, bed, c, title, per = {}) {
         const v = [], t = [];
         for (let i = 0; i < m.pos.length; i += 3) v.push(`<vertex x="${num(m.pos[i])}" y="${num(m.pos[i + 1])}" z="${num(m.pos[i + 2])}"/>`);
         for (let i = 0; i < m.idx.length; i += 3) t.push(`<triangle v1="${m.idx[i]}" v2="${m.idx[i + 1]}" v3="${m.idx[i + 2]}"/>`);
+        // modifier boxes follow the part's own triangles in the same mesh, each its own volume
+        for (const b of m.mods || []) {
+          const v0 = v.length;
+          for (const [x, y, z] of [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]])
+            v.push(`<vertex x="${num(x ? b.max[0] : b.min[0])}" y="${num(y ? b.max[1] : b.min[1])}" z="${num(z ? b.max[2] : b.min[2])}"/>`);
+          for (const [a, bb, cc] of [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]])
+            t.push(`<triangle v1="${v0 + a}" v2="${v0 + bb}" v3="${v0 + cc}"/>`);
+        }
         objects.push(`  <object id="${id}" type="model">\n   <mesh>\n    <vertices>\n${v.join("\n")}\n    </vertices>\n    <triangles>\n${t.join("\n")}\n    </triangles>\n   </mesh>\n  </object>`);
       } else {
         objects.push(`  <object id="${id}" type="model">\n   <components>\n    <component objectid="${firstId}"/>\n   </components>\n  </object>`);
@@ -90,8 +98,14 @@ export function projectFiles(beds, meshes, bed, c, title, per = {}) {
     const meta = (type, key, value) => `${type === "object" ? "  " : "   "}<metadata type="${type}" key="${key}" value="${esc(value)}"/>`;
     const lines = [` <object id="${firstId}" instances_count="${places.length}">`, meta("object", "name", label)];
     for (const [k, v] of Object.entries(per[name] || {})) lines.push(meta("object", k, v));
-    lines.push(`  <volume firstid="0" lastid="${m.idx.length / 3 - 1}">`, meta("volume", "name", label), meta("volume", "volume_type", "ModelPart"),
-      `   <mesh edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>`, `  </volume>`, ` </object>`);
+    const fixes = `   <mesh edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>`;
+    lines.push(`  <volume firstid="0" lastid="${m.idx.length / 3 - 1}">`, meta("volume", "name", label), meta("volume", "volume_type", "ModelPart"), fixes, `  </volume>`);
+    (m.mods || []).forEach((b, i) => {
+      const f0 = m.idx.length / 3 + 12 * i;
+      lines.push(`  <volume firstid="${f0}" lastid="${f0 + 11}">`, meta("volume", "name", `${b.label}: bridge angle`), meta("volume", "volume_type", "ParameterModifier"),
+        meta("volume", "bridge_angle", b.angle), fixes, `  </volume>`);
+    });
+    lines.push(` </object>`);
     modelCfg.push(lines.join("\n"));
   }
   const date = new Date().toISOString().slice(0, 10);

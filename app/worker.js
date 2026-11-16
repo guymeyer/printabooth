@@ -29,7 +29,7 @@ onmessage = async (ev) => {
       for (const p of parts) {
         postMessage({ id, type: "progress", part: p });
         const r = E.exportSTL(p, cfg);
-        meshes[p] = { pos: r.pos, idx: r.idx };
+        meshes[p] = { pos: r.pos, idx: r.idx, mods: r.mods || [] };
         out[p] = { buf: r.buf, size: r.size };
         transfer.push(r.buf);
       }
