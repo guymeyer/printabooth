@@ -427,9 +427,9 @@ function syncBasic() {
   $("#bCamSide").hidden = (cfg.orientation === "landscape") === (cfg.tablet.camEdge === "long");
   const uniOk = universalFits(cfg), uniBtn = $('#basicPane [data-path="fitMode"] [data-v="universal"]');
   if (uniBtn) uniBtn.disabled = !uniOk && cfg.fitMode !== "universal";
-  $("#bFitHint").textContent = !uniOk && cfg.fitMode !== "universal" && cfg.fitMode !== "direct" ? `This iPad doesn't fit the shared ${cfg.cass.size} mm shell, so the shell is sized to it, in a cassette you lift it out with.`
+  $("#bFitHint").textContent = !uniOk && cfg.fitMode !== "universal" && cfg.fitMode !== "direct" ? `This iPad doesn't fit the Universal ${cfg.cass.size} mm shell, so the shell is sized to it, in a cassette you lift it out with.`
     : cfg.fitMode === "direct" ? "No cassette: the iPad slips in through a slit in the top into a pocket sized to it. Smallest booth, one less part; this iPad only, without a case."
-    : cfg.fitMode === "hug" ? "The shell is sized snugly to this iPad, in a cassette you lift it out with." : `One ${cfg.cass.size} mm square shell takes any 11″ iPad in its own cassette.`;
+    : cfg.fitMode === "hug" ? "The shell is sized snugly to this iPad, in a cassette you lift it out with." : `One ${cfg.cass.size} mm square shell takes most iPads, each in its own cassette, so you can swap them.`;
   const dockWith = (side) => !!derive({ ...cfg, camSide: side, fitMode: cfg.fitMode === "direct" ? "direct" : "hug", dock: { ...cfg.dock, on: true } }).dock;
   const other = cfg.camSide === "left" ? "right" : "left", here = dockWith(cfg.camSide), flip = !here && dockWith(other), canDock = here || flip;
   $("#bDock").disabled = !canDock && !cfg.dock.on;
