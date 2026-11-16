@@ -834,11 +834,7 @@ export function makeEngine(wasm) {
       const dT = c.led.diffT, steps = [];
       for (let e = 0.9; e > 0.01; e -= 0.1) steps.push(ledRing(c, dT - 0.3 - 0.01, dT - 0.3 + (1.0 - e) + 0.1, e, LED_END.len));
       cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0, LED_END.len), ledRing(c, -1, dT - 0.3, 1.0, LED_END.len), ...steps])), ...ledBays(c, d), ledFeed(c, d));
-      // the channel's floor is bridged (the frame prints face down). Bridged as one U it gets one bridge direction, so one run
-      // would be bridged lengthwise and sag. The bottom run's floor goes one layer deeper: each side (with its corner) and the
-      // bottom are then bridged on different layers, each straight across the channel.
-      { const ox = d.Sx - d.ledSkin, oy = d.Sy - d.ledSkin, run = ox - d.led.ro;
-        cuts.push(box(-run, run, -oy, -(oy - d.ledW), d.ledDepth - 0.01, d.ledDepth + d.plan.lh)); }
+      // (the channel floor is bridged face down; the 3MF project sets the bridge angle per run, see bridgeModifiers)
     }
     if (d.hug) cuts.push(camNotch(d.notch, -1, lip + 0.01));   // camera notch in the lip
     if (d.dock) cuts.push(...dockCuts(c, d));
