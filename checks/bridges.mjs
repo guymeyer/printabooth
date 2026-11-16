@@ -1,7 +1,8 @@
 // Copyright (c) 2026 Guy Meyer. All rights reserved. Proprietary; see LICENSE.md.
 // Bridged roofs in the parts as they print (frame face down, rings and wall case front edge down). A slicer gives each
-// separately bridged island one bridge direction; an island that turns a corner (the LED channel's U, a ring's socket loop)
-// gets bridged lengthwise along some of its runs and sags. So every island bridged on a layer must be one straight run:
+// separately bridged island one bridge direction; an island that turns a corner (the LED channel's U) gets bridged
+// lengthwise along some of its runs and sags. (Even a straight run can be: the 3MF projects also set the angle per run with
+// modifiers, which checks/slicer-bridges.mjs verifies in PrusaSlicer itself. Ring sockets have pointed roofs, no bridge.) So every island bridged on a layer must be one straight run:
 // its bounding box at most 60 mm across in one direction.   node checks/bridges.mjs
 import Module from "manifold-3d";
 import * as g from "../app/geom.js";

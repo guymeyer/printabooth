@@ -593,14 +593,13 @@ export function makeEngine(wasm) {
   // sockets print on the bed: a 0.4 mm relief at the mouth swallows the first layer's squish (elephant's foot)
   // tongue at lapA..lapA+lapT from the inner wall; the socket is a rebate open to the inside (never a sliver on its inner side)
   const sockIn = (d) => Math.min(d.lapA - LAP.clr, -LAP.clr), sockOut = (d) => d.lapA + d.lapT + LAP.clr;
-  // the socket's roof is bridged (rings print front edge down). A closed loop bridged in one go gets one bridge direction, so
-  // two of its sides would be bridged lengthwise and sag; the sides (with their corners) go one layer deeper, so the top and
-  // bottom runs and each side are bridged on different layers, each as its own short span across the groove.
+  // the socket's roof would be bridged (rings print front edge down), and a slicer fills a groove this narrow with perimeters
+  // running along it, which sag into it. So the roof rises to a 45-degree peak instead (narrowing steps of 0.2 mm), which
+  // prints with no bridge at all; the extra height is clear of the tongue.
   const lapSocket = (d, c, z0 = 0) => {
-    const x = d.Sx - d.R, lh = d.plan.lh;
-    const sides = Manifold.union([box(x, 3000, -3000, 3000, z0 + LAP.depth - 0.01, z0 + LAP.depth + lh), box(-3000, -x, -3000, 3000, z0 + LAP.depth - 0.01, z0 + LAP.depth + lh)]);
-    return add(band(d, c, sockIn(d), sockOut(d), z0 - 1, z0 + LAP.depth), band(d, c, sockIn(d) - 0.4, sockOut(d) + 0.4, z0 - 1, z0 + 0.5),
-      inter(band(d, c, sockIn(d), sockOut(d), z0 + LAP.depth - 0.02, z0 + LAP.depth + lh), T(sides)));
+    const i = sockIn(d), o = sockOut(d), peak = [];
+    for (let t = 0.2; t < (o - i) / 2 - 0.15; t += 0.2) peak.push(band(d, c, i + t, o - t, z0 + LAP.depth - 0.01, z0 + LAP.depth + t));
+    return add(band(d, c, i, o, z0 - 1, z0 + LAP.depth), band(d, c, i - 0.4, o + 0.4, z0 - 1, z0 + 0.5), ...peak);
   };
   const lapTongue = (d, c, zFace) => band(d, c, d.lapA, d.lapA + d.lapT, zFace - 0.01, zFace + LAP.len);
   // seam groove on the underside of a tall part, full height (z0..z1)
@@ -829,7 +828,12 @@ export function makeEngine(wasm) {
     if (c.led.on) {
       // one unbroken channel (and diffuser recess) round the U up to the end bays, the bays as tunnels under the face, and the
       // feed slot from the feed side's bay back into the box
-      cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0, LED_END.len), ledRing(c, -1, c.led.diffT, 1.0, LED_END.len)])), ...ledBays(c, d), ledFeed(c, d));
+      // the diffuser's recess is 1 mm wider than the channel each side. A square ledge there would print (face down) as a
+      // 1 mm overhang, bridged lengthwise; instead the recess narrows at 45 degrees, from 0.3 mm short of the diffuser's
+      // thickness, so the diffuser's back edges land on the slope exactly flush with the face
+      const dT = c.led.diffT, steps = [];
+      for (let e = 0.9; e > 0.01; e -= 0.1) steps.push(ledRing(c, dT - 0.3 - 0.01, dT - 0.3 + (1.0 - e) + 0.1, e, LED_END.len));
+      cuts.push(T(Manifold.union([ledRing(c, -1, d.ledDepth, 0, LED_END.len), ledRing(c, -1, dT - 0.3, 1.0, LED_END.len), ...steps])), ...ledBays(c, d), ledFeed(c, d));
       // the channel's floor is bridged (the frame prints face down). Bridged as one U it gets one bridge direction, so one run
       // would be bridged lengthwise and sag. The bottom run's floor goes one layer deeper: each side (with its corner) and the
       // bottom are then bridged on different layers, each straight across the channel.
@@ -1340,8 +1344,14 @@ export function makeEngine(wasm) {
     const pos = new Float32Array(nv * 3);
     for (let i = 0; i < nv; i++) { pos[3 * i] = vp[i * np]; pos[3 * i + 1] = vp[i * np + 1]; pos[3 * i + 2] = vp[i * np + 2]; }
     const idx = new Uint32Array(mesh.triVerts);
+    // slicer modifiers, moved the same way as the mesh (rotated, then centred)
+    const R = printRot(name, c), turn = R && R[2] === 180 && !R[0] && !R[1], sh = [(bb.min[0] + bb.max[0]) / 2, (bb.min[1] + bb.max[1]) / 2, bb.min[2]];
+    const mods = (R && !turn) ? [] : bridgeModifiers(name, c).map((b) => {
+      const xs = turn ? [-b.max[0], -b.min[0]] : [b.min[0], b.max[0]], ys = turn ? [-b.max[1], -b.min[1]] : [b.min[1], b.max[1]];
+      return { ...b, min: [xs[0] - sh[0], ys[0] - sh[1], b.min[2] - sh[2]], max: [xs[1] - sh[0], ys[1] - sh[1], b.max[2] - sh[2]] };
+    });
     flush();
-    return { buf, size, pos, idx };
+    return { buf, size, pos, idx, mods };
   }
   const raw = (name, c) => BUILDERS[name](c, true);
   // full-detail part in its print orientation, sitting on z = 0 (for checks; caller flushes)
@@ -1369,6 +1379,24 @@ export function makeEngine(wasm) {
 }
 
 // ---------------------------------------------------------------- layout + numbers (pure)
+// PrusaSlicer picks one bridge direction per bridged area, and for the LED channel's floor (the frame prints face down) it
+// picks lengthwise, so the lines sag. The 3MF projects carry modifier boxes that set the angle for each run instead: the
+// sides (and the end bays at their tops) across in X, the bottom run across in Y, each bottom corner along its radius.
+// Model coordinates; angles are PrusaSlicer's bridge_angle (180 = X, since 0 means automatic).
+export function bridgeModifiers(name, c) {
+  if (name !== "frame" || !c.led.on) return [];
+  const d = derive(c), ox = d.Sx - d.ledSkin, oy = d.Sy - d.ledSkin, ro = d.led.ro, w = d.ledW, run = ox - ro;
+  const z0 = d.ledDepth - 1, z1 = Math.max(d.led.bayZ, d.ledDepth + d.plan.lh) + 1;
+  const b = (label, x0, x1, y0, y1, angle) => ({ label, min: [x0, y0, z0], max: [x1, y1, z1], angle });
+  return [
+    b("LED channel, left side", ox - w - 1.5, ox + 0.5, -(oy - ro), d.Sy, 180),
+    b("LED channel, right side", -(ox + 0.5), -(ox - w - 1.5), -(oy - ro), d.Sy, 180),
+    b("LED channel, bottom", -run, run, -oy - 0.5, -(oy - w) + 1.5, 90),
+    b("LED channel, bottom corner", run, ox + 0.5, -oy - 0.5, -(oy - ro), 135),
+    b("LED channel, bottom corner", -(ox + 0.5), -run, -oy - 0.5, -(oy - ro), 45),
+  ];
+}
+
 // a part's mesh at its place in the assembly (spin: turned 180 degrees about the face normal, e.g. the right-hand LED cover)
 export const place = (m, it) => (it.spin ? m.rotate([0, 0, 180]) : m).translate(it.pos);
 export function assembly(c) {

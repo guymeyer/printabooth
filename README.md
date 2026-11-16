@@ -20,7 +20,13 @@ Two tabs sit at the top of the settings. **Basic** walks through eleven plain qu
   - **Wall:** the same front frame and cassette on a shallow wall case and a wall plate with two keyholes. The page gives the screw spacing and the height to hang it at.
 - **USB-C dock (portrait, hugged tray):** a fixed plug in a printed clip at the bottom of the slot, so the iPad plugs itself in as the cassette drops in. Pick Apple, Anker or Amazon Basics (links to each), or measure your own plug.
 
-Bridged roofs are split so a slicer bridges each one straight across: the LED channel's bottom run is one layer deeper than its sides, and each ring's glue socket is one layer deeper along its sides than along its top and bottom. That way no U or loop gets a single bridge direction that runs lengthwise down part of it and sags. Every printed part is checked to print without supports (except the universal cassette's back ledge), with no wall under 1.4 mm and no overlaps in the assembly.
+Overhangs are designed out where possible, and the bridges that remain are pinned in the slicer:
+
+- **LED channel floor.** The frame prints face down, so the channel floor is bridged. Left to itself, PrusaSlicer bridged parts of it lengthwise, even straight runs, and the lines sagged. The frame's 3MF project now carries invisible modifier boxes that set the bridge angle for each run: straight across the sides, the end bays and the bottom, and along the radius at each bottom corner. The bottom run is also one layer deeper than the sides, so the two are bridged separately. `checks/slicer-bridges.mjs` slices the project in PrusaSlicer itself and fails if any bridge line over the channel is longer than 12 mm (it skips when `prusa-slicer` isn't installed).
+- **Diffuser seat.** The ledge the diffuser rests on is a 45° chamfer rather than a 1 mm square step, so it prints without an overhang and the diffuser still sits flush.
+- **Glue sockets.** Each ring's glue socket has a 45° pointed roof, so it prints with no bridge at all.
+
+Only the PrusaSlicer projects carry the bridge angles; if you slice the STLs yourself, set the frame's bridge angles by hand. Every printed part is checked to print without supports (except the universal cassette's back ledge), with no wall under 1.4 mm and no overlaps in the assembly.
 
 ## Nozzle and material
 
